@@ -12,68 +12,37 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 cdef extern from "mpv/client.h":
-
     ctypedef signed char int8_t
-
     ctypedef short int16_t
-
     ctypedef int int32_t
-
     ctypedef long int64_t
-
     ctypedef unsigned char uint8_t
-
     ctypedef unsigned short uint16_t
-
     ctypedef unsigned int uint32_t
-
     ctypedef unsigned long uint64_t
-
     ctypedef signed char int_least8_t
-
     ctypedef short int_least16_t
-
     ctypedef int int_least32_t
-
     ctypedef long int_least64_t
-
     ctypedef unsigned char uint_least8_t
-
     ctypedef unsigned short uint_least16_t
-
     ctypedef unsigned int uint_least32_t
-
     ctypedef unsigned long uint_least64_t
-
     ctypedef signed char int_fast8_t
-
     ctypedef long int_fast16_t
-
     ctypedef long int_fast32_t
-
     ctypedef long int_fast64_t
-
     ctypedef unsigned char uint_fast8_t
-
     ctypedef unsigned long uint_fast16_t
-
     ctypedef unsigned long uint_fast32_t
-
     ctypedef unsigned long uint_fast64_t
-
     ctypedef long intptr_t
-
     ctypedef unsigned long uintptr_t
-
     ctypedef long intmax_t
-
     ctypedef unsigned long uintmax_t
-
     unsigned long mpv_client_api_version() nogil
-
     cdef struct mpv_handle:
         pass
-
     cdef enum mpv_error:
         MPV_ERROR_SUCCESS = 0
         MPV_ERROR_EVENT_QUEUE_FULL = -1
@@ -95,29 +64,17 @@ cdef extern from "mpv/client.h":
         MPV_ERROR_UNKNOWN_FORMAT = -17
         MPV_ERROR_UNSUPPORTED = -18
         MPV_ERROR_NOT_IMPLEMENTED = -19
-
     const char *mpv_error_string(int error) nogil
-
     void mpv_free(void *data) nogil
-
     const char *mpv_client_name(mpv_handle *ctx) nogil
-
     mpv_handle *mpv_create() nogil
-
     int mpv_initialize(mpv_handle *ctx) nogil
-
     void mpv_detach_destroy(mpv_handle *ctx) nogil
-
     void mpv_terminate_destroy(mpv_handle *ctx) nogil
-
     int mpv_load_config_file(mpv_handle *ctx, const char *filename) nogil
-
     void mpv_suspend(mpv_handle *ctx) nogil
-
     void mpv_resume(mpv_handle *ctx) nogil
-
     int64_t mpv_get_time_us(mpv_handle *ctx) nogil
-
     cdef enum mpv_format:
         MPV_FORMAT_NONE
         MPV_FORMAT_STRING
@@ -128,64 +85,40 @@ cdef extern from "mpv/client.h":
         MPV_FORMAT_NODE
         MPV_FORMAT_NODE_ARRAY
         MPV_FORMAT_NODE_MAP
-
-    cdef struct ____mpv_node_u_mpv_node_list:
+    cdef struct __mpv_node_u_mpv_node_list:
         pass
-
-    ctypedef ____mpv_node_u_mpv_node_list ____mpv_node_u_mpv_node_list_t
-
+    ctypedef __mpv_node_u_mpv_node_list __mpv_node_u_mpv_node_list_t
     cdef union __mpv_node_u:
         char *string
         int flag
         int64_t int64
         double double_
         mpv_node_list *list
-
-    ctypedef __mpv_node_u __mpv_node_u_t
-
+    ctypedef __mpv_node_u __mpv_node_u
     cdef struct mpv_node:
-        __mpv_node_u_t u
+        __mpv_node_u u
         mpv_format format
-
     cdef struct mpv_node_list:
         int num
         mpv_node *values
         char **keys
-
     void mpv_free_node_contents(mpv_node *node) nogil
-
     int mpv_set_option(mpv_handle *ctx, const char *name, mpv_format format, void *data) nogil
-
     int mpv_set_option_string(mpv_handle *ctx, const char *name, const char *data) nogil
-
     int mpv_command(mpv_handle *ctx, const char **args) nogil
-
     int mpv_command_node(mpv_handle *ctx, mpv_node *args, mpv_node *result) nogil
-
     int mpv_command_string(mpv_handle *ctx, const char *args) nogil
-
     int mpv_command_async(mpv_handle *ctx, uint64_t reply_userdata, const char **args) nogil
-
     int mpv_command_node_async(mpv_handle *ctx, uint64_t reply_userdata, mpv_node *args) nogil
-
     int mpv_set_property(mpv_handle *ctx, const char *name, mpv_format format, void *data) nogil
-
     int mpv_set_property_string(mpv_handle *ctx, const char *name, const char *data) nogil
-
     int mpv_set_property_async(mpv_handle *ctx, uint64_t reply_userdata, const char *name, mpv_format format, void *data) nogil
-
     int mpv_get_property(mpv_handle *ctx, const char *name, mpv_format format, void *data) nogil
-
     char *mpv_get_property_string(mpv_handle *ctx, const char *name) nogil
-
     char *mpv_get_property_osd_string(mpv_handle *ctx, const char *name) nogil
-
     int mpv_get_property_async(mpv_handle *ctx, uint64_t reply_userdata, const char *name, mpv_format format) nogil
-
     int mpv_observe_property(mpv_handle *mpv, uint64_t reply_userdata, const char *name, mpv_format format) nogil
-
     int mpv_unobserve_property(mpv_handle *mpv, uint64_t registered_reply_userdata) nogil
-
     cdef enum mpv_event_id:
         MPV_EVENT_NONE
         MPV_EVENT_SHUTDOWN
@@ -211,14 +144,11 @@ cdef extern from "mpv/client.h":
         MPV_EVENT_PLAYBACK_RESTART
         MPV_EVENT_PROPERTY_CHANGE
         MPV_EVENT_CHAPTER_CHANGE
-
     const char *mpv_event_name(mpv_event_id event) nogil
-
     cdef struct mpv_event_property:
         const char *name
         mpv_format format
         void *data
-
     cdef enum mpv_log_level:
         MPV_LOG_LEVEL_NONE  = 0
         MPV_LOG_LEVEL_FATAL = 10
@@ -228,47 +158,33 @@ cdef extern from "mpv/client.h":
         MPV_LOG_LEVEL_V     = 50
         MPV_LOG_LEVEL_DEBUG = 60
         MPV_LOG_LEVEL_TRACE = 70
-
     cdef struct mpv_event_log_message:
         const char *prefix
         const char *level
         const char *text
         int log_level
-
     cdef enum mpv_end_file_reason:
         MPV_END_FILE_REASON_EOF = 0
         MPV_END_FILE_REASON_STOP = 2
         MPV_END_FILE_REASON_QUIT = 3
         MPV_END_FILE_REASON_ERROR = 4
-
     cdef struct mpv_event_end_file:
         int reason
         int error
-
     cdef struct mpv_event_script_input_dispatch:
         int arg0
         const char *type
-
     cdef struct mpv_event_client_message:
         int num_args
         const char **args
-
     cdef struct mpv_event:
         mpv_event_id event_id
         int error
         uint64_t reply_userdata
         void *data
-
     int mpv_request_event(mpv_handle *ctx, mpv_event_id event, int enable) nogil
-
     int mpv_request_log_messages(mpv_handle *ctx, const char *min_level) nogil
-
     mpv_event *mpv_wait_event(mpv_handle *ctx, double timeout) nogil
-
     void mpv_wakeup(mpv_handle *ctx) nogil
-
     void mpv_set_wakeup_callback(mpv_handle *ctx, void (*cb)(void *), void *d) nogil
-
     int mpv_get_wakeup_pipe(mpv_handle *ctx) nogil
-
-
