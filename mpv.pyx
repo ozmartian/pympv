@@ -295,6 +295,7 @@ cdef class Context(object):
     """
     cdef mpv_handle *_ctx
     cdef object callback, callbackthread, reply_userdata
+    cdef readonly object initialized
     cdef object properties
     cdef object options
     @property
@@ -545,17 +546,18 @@ cdef class Context(object):
         finally: self._free_native_value(v)
         return err
     def __getattr__(self,name):
-        if self.properties.get(name):return self.get_property(name.replace('_','-'))
-        else:
-            if name not in self.properties:
-                try:
-                    ret = self.get_property(name.replace('_','-'))
-                    self.properties[name]=True
-                    return ret
-                except MPVError as e:
-                    if e.code == MPV_ERROR_PROPERTY_NOT_FOUND:
-                        self.properties[name]=False
-                    return None
+        key = self.properties.get(name)
+        if key:
+            return self.get_property(key)
+        elif key is None:
+            try:
+                key = name.replace('_','-')
+                ret = self.get_property(key)
+                self.properties[name]=key
+                return ret
+            except MPVError as e:
+                if e.code == MPV_ERROR_PROPERTY_NOT_FOUND:
+                    self.properties[name]=False
         raise AttributeError
     def __setattr__(self,name,value):
         if self.properties.get(name):
@@ -608,11 +610,13 @@ cdef class Context(object):
     def initialize(self):
         """Wraps: mpv_initialize"""
         assert self._ctx
-        cdef int err
-        with nogil: 
-            err = mpv_initialize(self._ctx)
-        for prop in self.get_property("property-list"):
-            self.properties[prop] = True
+        cdef int err = 0
+        if not self.initialized:
+            self.initialized = True
+            with nogil: 
+                err = mpv_initialize(self._ctx)
+            for prop in self.get_property("property-list"):
+                self.properties[prop] = prop.replace('_','-')
         return err
     def wait_event(self, timeout=None):
         """Wraps: mpv_wait_event"""
@@ -641,8 +645,11 @@ cdef class Context(object):
     def __cinit__(self):
         cdef uint64_t ctxid = <uint64_t>id(self)
         #with nogil: self._ctx = mpv_create()
-        self._ctx = mpv_create()
-        if not self._ctx: raise MPVError("Context creation error")
+        self.initialized = False
+        with nogil:
+            self._ctx = mpv_create()
+        if not self._ctx:
+            raise MPVError("Context creation error")
         self.callbackthread = CallbackThread()
         _callbacks[ctxid] = self.callbackthread
         self.reply_userdata = dict()

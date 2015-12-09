@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import print_function, division
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -24,8 +25,7 @@ from Cython.Build import cythonize
 def tryremove(filename):
     if not os.path.isfile(filename):
         return
-    try:
-        os.remove(filename)
+    try: os.remove(filename)
     except OSError as e:
         print(e)
 
@@ -33,12 +33,10 @@ class Clean(clean):
     side_effects = [
         "mpv.c",
     ]
-
     def run(self):
         for f in self.side_effects:
             tryremove(f)
         clean.run(self)
-
 setup(
     cmdclass = {
         "build_ext": build_ext,
