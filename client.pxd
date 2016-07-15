@@ -1,4 +1,4 @@
-## Permission to use, copy, modify, and/or distribute this software for any
+#* Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
 #
@@ -9,9 +9,9 @@
 # WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-#
+#/
 
-##
+#
 # Note: the client API is licensed under ISC (see above) to ease
 # interoperability with other licenses. But keep in mind that the
 # mpv core is still mostly GPLv2+. It's up to lawyers to decide
@@ -19,15 +19,19 @@
 # One argument against this is that proprietary applications
 # using mplayer in slave mode is apparently tolerated, and this
 # API is basically equivalent to slave mode.
-#
+#/
 
+#ifndef MPV_CLIENT_API_H_
+#define MPV_CLIENT_API_H_
 
+#include <stddef.h>
+#include <stdint.h>
 from libc.stdint cimport *
 from libc.stdint cimport uint64_t, int64_t, uint32_t, int32_t, uint16_t, int16_t, uint8_t, int8_t, intptr_t, uintptr_t, intmax_t
 
 cdef extern from "mpv/client.h" nogil:
 
-##*
+#*
 # Mechanisms provided by this API
 # -------------------------------
 #
@@ -198,7 +202,7 @@ cdef extern from "mpv/client.h" nogil:
 # mpv changes.
 #/
 
-##*
+#*
 # The version is incremented on each API change. The 16 lower bits form the
 # minor version number, and the 16 higher bits the major version number. If
 # the API becomes incompatible to previous versions, the major version
@@ -213,122 +217,122 @@ cdef extern from "mpv/client.h" nogil:
 #define MPV_MAKE_VERSION(major, minor) (((major) << 16) | (minor) | 0UL)
 #define MPV_CLIENT_API_VERSION MPV_MAKE_VERSION(1, 21)
 
-##*
+#*
 # Return the MPV_CLIENT_API_VERSION the mpv source has been compiled with.
 #/
-    cdef unsigned long mpv_client_api_version()
+    unsigned long mpv_client_api_version();
 
-##*
+#*
 # Client context used by the client API. Every client has its own private
 # handle.
 #/
     ctypedef struct mpv_handle:
         pass
 
-##*
+#*
 # List of error codes than can be returned by API functions. 0 and positive
 # return values always mean success, negative values are always errors.
 #/
     ctypedef enum mpv_error:
-#
+#*
 # No error happened (used to signal successful operation).
 # Keep in mind that many API functions returning error codes can also
-# return positive values which also indicate success. API users can
+# return positive values, which also indicate success. API users can
 # hardcode the fact that ">= 0" means success.
 #/
         MPV_ERROR_SUCCESS
-#
-# The event ringbuffer is full. This means the client is choked and can't
+#*
+# The event ringbuffer is full. This means the client is choked, and can't
 # receive any events. This can happen when too many asynchronous requests
-# have been made but not answered. Probably never happens in practice
-# unless the mpv core is frozen for some reason and the client keeps
+# have been made, but not answered. Probably never happens in practice,
+# unless the mpv core is frozen for some reason, and the client keeps
 # making asynchronous requests. (Bugs in the client API implementation
-# could also trigger this e.g. if events become "lost".)
+# could also trigger this, e.g. if events become "lost".)
 #/
         MPV_ERROR_EVENT_QUEUE_FULL
-#
+#*
 # Memory allocation failed.
 #/
         MPV_ERROR_NOMEM
-#
+#*
 # The mpv core wasn't configured and initialized yet. See the notes in
 # mpv_create().
 #/
         MPV_ERROR_UNINITIALIZED
-#
+#*
 # Generic catch-all error if a parameter is set to an invalid or
 # unsupported value. This is used if there is no better error code.
 #/
         MPV_ERROR_INVALID_PARAMETER
-#
+#*
 # Trying to set an option that doesn't exist.
 #/
         MPV_ERROR_OPTION_NOT_FOUND
-#
+#*
 # Trying to set an option using an unsupported MPV_FORMAT.
 #/
         MPV_ERROR_OPTION_FORMAT
-#
+#*
 # Setting the option failed. Typically this happens if the provided option
 # value could not be parsed.
 #/
         MPV_ERROR_OPTION_ERROR
-#
+#*
 # The accessed property doesn't exist.
 #/
         MPV_ERROR_PROPERTY_NOT_FOUND
-#
+#*
 # Trying to set or get a property using an unsupported MPV_FORMAT.
 #/
         MPV_ERROR_PROPERTY_FORMAT
-#
-# The property exists but is not available. This usually happens when the
-# associated subsystem is not active e.g. querying audio parameters while
+#*
+# The property exists, but is not available. This usually happens when the
+# associated subsystem is not active, e.g. querying audio parameters while
 # audio is disabled.
 #/
         MPV_ERROR_PROPERTY_UNAVAILABLE
-#
+#*
 # Error setting or getting a property.
 #/
         MPV_ERROR_PROPERTY_ERROR
-#
+#*
 # General error when running a command with mpv_command and similar.
 #/
         MPV_ERROR_COMMAND
-#
+#*
 # Generic error on loading (used with mpv_event_end_file.error).
 #/
         MPV_ERROR_LOADING_FAILED
-#
+#*
 # Initializing the audio output failed.
 #/
         MPV_ERROR_AO_INIT_FAILED
-#
+#*
 # Initializing the video output failed.
 #/
         MPV_ERROR_VO_INIT_FAILED
-#
+#*
 # There was no audio or video data to play. This also happens if the
-# file was recognized but did not contain any audio or video streams
+# file was recognized, but did not contain any audio or video streams,
 # or no streams were selected.
 #/
         MPV_ERROR_NOTHING_TO_PLAY
-#
-# When trying to load the file the file format could not be determined
+#*
+# When trying to load the file, the file format could not be determined,
 # or the file was too broken to open it.
 #/
         MPV_ERROR_UNKNOWN_FORMAT
-#
+#*
 # Generic error for signaling that certain system requirements are not
 # fulfilled.
 #/
         MPV_ERROR_UNSUPPORTED
-#
+#*
 # The API function which was called is a stub only.
 #/
         MPV_ERROR_NOT_IMPLEMENTED
 
-##*
+#*
 # Return a string describing the error. For unknown errors, the string
 # "unknown error" is returned.
 #
@@ -336,27 +340,27 @@ cdef extern from "mpv/client.h" nogil:
 # @return A static string describing the error. The string is completely
 #         static, i.e. doesn't need to be deallocated, and is valid forever.
 #/
-    cdef const char *mpv_error_string(int error)
+    const char *mpv_error_string(int error);
 
-##*
+#*
 # General function to deallocate memory returned by some of the API functions.
 # Call this only if it's explicitly documented as allowed. Calling this on
 # mpv memory not owned by the caller will lead to undefined behavior.
 #
 # @param data A valid pointer returned by the API, or NULL.
 #/
-    cdef void mpv_free(void *data)
+    void mpv_free(void *data);
 
-##*
+#*
 # Return the name of this client handle. Every client has its own unique
 # name, which is mostly used for user interface purposes.
 #
 # @return The client name. The string is read-only and is valid until the
 #         mpv_handle is destroyed.
 #/
-    cdef const char *mpv_client_name(mpv_handle *ctx)
+    const char *mpv_client_name(mpv_handle *ctx);
 
-##*
+#*
 # Create a new mpv instance and an associated client API handle to control
 # the mpv instance. This instance is in a pre-initialized state,
 # and needs to be initialized to be actually used with most other API
@@ -405,9 +409,9 @@ cdef extern from "mpv/client.h" nogil:
 #         - out of memory
 #         - LC_NUMERIC is not set to "C" (see general remarks)
 #/
-    cdef mpv_handle *mpv_create()
+    mpv_handle *mpv_create();
 
-##*
+#*
 # Initialize an uninitialized mpv instance. If the mpv instance is already
 # running, an error is retuned.
 #
@@ -416,17 +420,17 @@ cdef extern from "mpv/client.h" nogil:
 #
 # @return error code
 #/
-    cdef int mpv_initialize(mpv_handle *ctx)
+    int mpv_initialize(mpv_handle *ctx);
 
-##*
+#*
 # Disconnect and destroy the mpv_handle. ctx will be deallocated with this
 # API call. This leaves the player running. If you want to be sure that the
 # player is terminated, send a "quit" command, and wait until the
 # MPV_EVENT_SHUTDOWN event is received, or use mpv_terminate_destroy().
 #/
-    cdef void mpv_detach_destroy(mpv_handle *ctx)
+    void mpv_detach_destroy(mpv_handle *ctx);
 
-##*
+#*
 # Similar to mpv_detach_destroy(), but brings the player and all clients down
 # as well, and waits until all of them are destroyed. This function blocks. The
 # advantage over mpv_detach_destroy() is that while mpv_detach_destroy() merely
@@ -441,9 +445,9 @@ cdef extern from "mpv/client.h" nogil:
 # this function will merely send a quit command and then call
 # mpv_detach_destroy(), without waiting for the actual shutdown.
 #/
-    cdef void mpv_terminate_destroy(mpv_handle *ctx)
+    void mpv_terminate_destroy(mpv_handle *ctx);
 
-##*
+#*
 # Create a new client handle connected to the same player core as ctx. This
 # context has its own event queue, its own mpv_request_event() state, its own
 # mpv_request_log_messages() state, its own set of observed properties, and
@@ -467,9 +471,9 @@ cdef extern from "mpv/client.h" nogil:
 #             If NULL, an arbitrary name is automatically chosen.
 # @return a new handle, or NULL on error
 #/
-    cdef mpv_handle *mpv_create_client(mpv_handle *ctx, const char *name);
+    mpv_handle *mpv_create_client(mpv_handle *ctx, const char *name);
 
-##*
+#*
 # Load a config file. This loads and parses the file, and sets every entry in
 # the config file's default section as if mpv_set_option_string() is called.
 #
@@ -491,9 +495,9 @@ cdef extern from "mpv/client.h" nogil:
 # @param filename absolute path to the config file on the local filesystem
 # @return error code
 #/
-    cdef int mpv_load_config_file(mpv_handle *ctx, const char *filename);
+    int mpv_load_config_file(mpv_handle *ctx, const char *filename);
 
-##*
+#*
 # Stop the playback thread. This means the core will stop doing anything, and
 # only run and answer to client API requests. This is sometimes useful; for
 # example, no new frame will be queued to the video output, so doing requests
@@ -511,14 +515,14 @@ cdef extern from "mpv/client.h" nogil:
 #
 # Calling this on an uninitialized player (see mpv_create()) will deadlock.
 #/
-    cdef void mpv_suspend(mpv_handle *ctx);
+    void mpv_suspend(mpv_handle *ctx);
 
-##*
+#*
 # See mpv_suspend().
 #/
-    cdef void mpv_resume(mpv_handle *ctx);
+    void mpv_resume(mpv_handle *ctx);
 
-##*
+#*
 # Return the internal time in microseconds. This has an arbitrary start offset,
 # but will never wrap or go backwards.
 #
@@ -530,138 +534,138 @@ cdef extern from "mpv/client.h" nogil:
 # Unlike other libmpv APIs, this can be called at absolutely any time (even
 # within wakeup callbacks), as long as the context is valid.
 #/
-    cdef int64_t mpv_get_time_us(mpv_handle *ctx);
+    int64_t mpv_get_time_us(mpv_handle *ctx);
 
-##*
+#*
 # Data format for options and properties. The API functions to get/set
 # properties and options support multiple formats, and this enum describes
 # them.
 #/
     ctypedef enum mpv_format:
-        ##
+#*
 # Invalid. Sometimes used for empty values.
 #/
-        MPV_FORMAT_NONE             = 0
-        ##
-# The basic type is char*. It returns the raw property string like
-# using ${=property} in input.conf (see input.rst).
+        MPV_FORMAT_NONE
+#*
+# The basic type is char*. It returns the raw property string, like
+# using ${
 #
 # NULL isn't an allowed value.
 #
-# Warning: although the encoding is usually UTF-8 this is not always the
-#          case. File tags often store strings in some legacy codepage
+# Warning: although the encoding is usually UTF-8, this is not always the
+#          case. File tags often store strings in some legacy codepage,
 #          and even filenames don't necessarily have to be in UTF-8 (at
 #          least on Linux). If you pass the strings to code that requires
-#          valid UTF-8 you have to sanitize it in some way.
-#          On Windows filenames are always UTF-8 and libmpv converts
+#          valid UTF-8, you have to sanitize it in some way.
+#          On Windows, filenames are always UTF-8, and libmpv converts
 #          between UTF-8 and UTF-16 when using win32 API functions. See
 #          the "Encoding of filenames" section for details.
 #
 # Example for reading:
 #
-#     char *result = NULL;
-#     if (mpv_get_property(ctx "property" MPV_FORMAT_STRING &result) < 0)
+#     char *result
+#     if (mpv_get_property(ctx, "property", MPV_FORMAT_STRING, &result) < 0)
 #         goto error;
-#     printf("%s\n" result);
+#     printf("%s\n", result);
 #     mpv_free(result);
 #
 # Or just use mpv_get_property_string().
 #
 # Example for writing:
 #
-#     char *value = "the new value";
-#     // yep you pass the address to the variable
+#     char *value
+#     // yep, you pass the address to the variable
 #     // (needed for symmetry with other types and mpv_get_property)
-#     mpv_set_property(ctx "property" MPV_FORMAT_STRING &value);
+#     mpv_set_property(ctx, "property", MPV_FORMAT_STRING, &value);
 #
 # Or just use mpv_set_property_string().
 #
 #/
-        MPV_FORMAT_STRING           = 1
-        ##
-# The basic type is char*. It returns the OSD property string like
-# using ${property} in input.conf (see input.rst). In many cases this
-# is the same as the raw string but in other cases it's formatted for
+        MPV_FORMAT_STRING
+#*
+# The basic type is char*. It returns the OSD property string, like
+# using ${property} in input.conf (see input.rst). In many cases, this
+# is the same as the raw string, but in other cases it's formatted for
 # display on OSD. It's intended to be human readable. Do not attempt to
 # parse these strings.
 #
 # Only valid when doing read access. The rest works like MPV_FORMAT_STRING.
 #/
-        MPV_FORMAT_OSD_STRING       = 2
-        ##
+        MPV_FORMAT_OSD_STRING
+#*
 # The basic type is int. The only allowed values are 0 ("no")
 # and 1 ("yes").
 #
 # Example for reading:
 #
 #     int result;
-#     if (mpv_get_property(ctx "property" MPV_FORMAT_FLAG &result) < 0)
+#     if (mpv_get_property(ctx, "property", MPV_FORMAT_FLAG, &result) < 0)
 #         goto error;
-#     printf("%s\n" result ? "true" : "false");
+#     printf("%s\n", result ? "true" : "false");
 #
 # Example for writing:
 #
-#     int flag = 1;
-#     mpv_set_property(ctx "property" MPV_FORMAT_FLAG &flag);
+#     int flag
+#     mpv_set_property(ctx, "property", MPV_FORMAT_FLAG, &flag);
 #/
-        MPV_FORMAT_FLAG             = 3
-        ##
+        MPV_FORMAT_FLAG
+#*
 # The basic type is int64_t.
 #/
-        MPV_FORMAT_INT64            = 4
-        ##
+        MPV_FORMAT_INT64
+#*
 # The basic type is double.
 #/
-        MPV_FORMAT_DOUBLE           = 5
-        ##
+        MPV_FORMAT_DOUBLE
+#*
 # The type is mpv_node.
 #
-# For reading you usually would pass a pointer to a stack-allocated
-# mpv_node value to mpv and when you're done you call
+# For reading, you usually would pass a pointer to a stack-allocated
+# mpv_node value to mpv, and when you're done you call
 # mpv_free_node_contents(&node).
-# You're expected not to write to the data - if you have to copy it
+# You're expected not to write to the data - if you have to, copy it
 # first (which you have to do manually).
 #
-# For writing you construct your own mpv_node and pass a pointer to the
-# API. The API will never write to your data (and copy it if needed) so
+# For writing, you construct your own mpv_node, and pass a pointer to the
+# API. The API will never write to your data (and copy it if needed), so
 # you're free to use any form of allocation or memory management you like.
 #
-# Warning: when reading always check the mpv_node.format member. For
-#          example properties might change their type in future versions
-#          of mpv or sometimes even during runtime.
+# Warning: when reading, always check the mpv_node.format member. For
+#          example, properties might change their type in future versions
+#          of mpv, or sometimes even during runtime.
 #
 # Example for reading:
 #
 #     mpv_node result;
-#     if (mpv_get_property(ctx "property" MPV_FORMAT_NODE &result) < 0)
+#     if (mpv_get_property(ctx, "property", MPV_FORMAT_NODE, &result) < 0)
 #         goto error;
-#     printf("format=%d\n" (int)result.format);
+#     printf("format
 #     mpv_free_node_contents(&result).
 #
 # Example for writing:
 #
 #     mpv_node value;
-#     value.format = MPV_FORMAT_STRING;
-#     value.u.string = "hello";
-#     mpv_set_property(ctx "property" MPV_FORMAT_NODE &value);
+#     value.format
+#     value.u.string
+#     mpv_set_property(ctx, "property", MPV_FORMAT_NODE, &value);
 #/
-        MPV_FORMAT_NODE             = 6
-        ##
+        MPV_FORMAT_NODE
+#*
 # Used with mpv_node only. Can usually not be used directly.
 #/
-        MPV_FORMAT_NODE_ARRAY       = 7
-        ##
+        MPV_FORMAT_NODE_ARRAY
+#*
 # See MPV_FORMAT_NODE_ARRAY.
 #/
-        MPV_FORMAT_NODE_MAP         = 8
-        ##
-# A raw untyped byte array. Only used only with mpv_node and only in
-# some very special situations. (Currently only for the screenshot_raw
+        MPV_FORMAT_NODE_MAP
+#*
+# A raw, untyped byte array. Only used only with mpv_node, and only in
+# some very special situations. (Currently, only for the screenshot-raw
 # command.)
 #/
-        MPV_FORMAT_BYTE_ARRAY       = 9
+        MPV_FORMAT_BYTE_ARRAY
 
-##*
+#*
 # Generic data storage.
 #
 # If mpv writes this struct (e.g. via mpv_get_property()), you must not change
@@ -674,19 +678,19 @@ cdef extern from "mpv/client.h" nogil:
         int flag;       ## valid if format==MPV_FORMAT_FLAG   */
         int64_t int64;  ## valid if format==MPV_FORMAT_INT64  */
         double double_; ## valid if format==MPV_FORMAT_DOUBLE */
-        ##
+#*
 # valid if format==MPV_FORMAT_NODE_ARRAY
 #    or if format==MPV_FORMAT_NODE_MAP
 #/
         mpv_node_list *list;
-        ##
+#*
 # valid if format==MPV_FORMAT_BYTE_ARRAY
 #/
         mpv_byte_array *ba;
 
     ctypedef struct mpv_node:
         mpv_node_u u
-    ##
+#*
 # Type of the data stored in this struct. This value rules what members in
 # the given union can be accessed. The following formats are currently
 # defined to be allowed in mpv_node:
@@ -705,15 +709,15 @@ cdef extern from "mpv/client.h" nogil:
 #/
         mpv_format format
 
-##*
+#*
 # (see mpv_node)
 #/
     ctypedef struct mpv_node_list:
-    ##
+#*
 # Number of entries. Negative values are not allowed.
 #/
         int num;
-    ##
+#*
 # MPV_FORMAT_NODE_ARRAY:
 #  values[N] refers to value of the Nth item
 #
@@ -724,7 +728,7 @@ cdef extern from "mpv/client.h" nogil:
 # Otherwise, this can be NULL.
 #/
         mpv_node *values;
-    ##
+#*
 # MPV_FORMAT_NODE_ARRAY:
 #  unused (typically NULL), access is not allowed
 #
@@ -736,20 +740,21 @@ cdef extern from "mpv/client.h" nogil:
 #/
         char **keys;
 
-##*
+#*
 # (see mpv_node)
 #/
     ctypedef struct mpv_byte_array:
-##
+#*
 # Pointer to the data. In what format the data is stored is up to whatever
 # uses MPV_FORMAT_BYTE_ARRAY.
-
+#/
         void *data;
-##
+#*
 # Size of the data pointed to by ptr.
+#/
         size_t size;
 
-##*
+#*
 # Frees any data referenced by the node. It doesn't free the node itself.
 # Call this only if the mpv client API set the node. If you constructed the
 # node yourself (manually), you have to free it yourself.
@@ -759,9 +764,9 @@ cdef extern from "mpv/client.h" nogil:
 # be called. (This is just a clarification that there's no danger of anything
 # strange happening in these cases.)
 #/
-    cdef void mpv_free_node_contents(mpv_node *node)
+    void mpv_free_node_contents(mpv_node *node);
 
-##*
+#*
 # Set an option. Note that you can't normally set options during runtime. It
 # works in uninitialized state (see mpv_create()), and in some cases in at
 # runtime.
@@ -782,17 +787,18 @@ cdef extern from "mpv/client.h" nogil:
 # @param[in] data Option value (according to the format).
 # @return error code
 #/
-    cdef int mpv_set_option(mpv_handle *ctx, const char *name, mpv_format format,void *data)
+    int mpv_set_option(mpv_handle *ctx, const char *name, mpv_format format,
+                   void *data);
 
-##*
+#*
 # Convenience function to set an option to a string value. This is like
 # calling mpv_set_option() with MPV_FORMAT_STRING.
 #
 # @return error code
 #/
-    cdef int mpv_set_option_string(mpv_handle *ctx, const char *name, const char *data)
+    int mpv_set_option_string(mpv_handle *ctx, const char *name, const char *data);
 
-##*
+#*
 # Send a command to the player. Commands are the same as those used in
 # input.conf, except that this function takes parameters in a pre-split
 # form.
@@ -803,9 +809,9 @@ cdef extern from "mpv/client.h" nogil:
 #                 is the command, and the following items are arguments.
 # @return error code
 #/
-    cdef int mpv_command(mpv_handle *ctx, const char **args)
+    int mpv_command(mpv_handle *ctx, const char **args);
 
-##*
+#*
 # Same as mpv_command(), but allows passing structured data in any format.
 # In particular, calling mpv_command() is exactly like calling
 # mpv_command_node() with the format set to MPV_FORMAT_NODE_ARRAY, and
@@ -823,16 +829,16 @@ cdef extern from "mpv/client.h" nogil:
 #                    the future.
 # @return error code (the result parameter is not set on error)
 #/
-    cdef int mpv_command_node(mpv_handle *ctx, mpv_node *args, mpv_node *result);
+    int mpv_command_node(mpv_handle *ctx, mpv_node *args, mpv_node *result);
 
-##*
+#*
 # Same as mpv_command, but use input.conf parsing for splitting arguments.
 # This is slightly simpler, but also more error prone, since arguments may
 # need quoting/escaping.
 #/
-    cdef int mpv_command_string(mpv_handle *ctx, const char *args);
+    int mpv_command_string(mpv_handle *ctx, const char *args);
 
-##*
+#*
 # Same as mpv_command, but run the command asynchronously.
 #
 # Commands are executed asynchronously. You will receive a
@@ -844,9 +850,10 @@ cdef extern from "mpv/client.h" nogil:
 # @param args NULL-terminated list of strings (see mpv_command())
 # @return error code (if parsing or queuing the command fails)
 #/
-    cdef int mpv_command_async(mpv_handle *ctx, uint64_t reply_userdata,const char **args);
+    int mpv_command_async(mpv_handle *ctx, uint64_t reply_userdata,
+                      const char **args);
 
-##*
+#*
 # Same as mpv_command_node(), but run it asynchronously. Basically, this
 # function is to mpv_command_node() what mpv_command_async() is to
 # mpv_command().
@@ -859,10 +866,10 @@ cdef extern from "mpv/client.h" nogil:
 # @param args as in mpv_command_node()
 # @return error code (if parsing or queuing the command fails)
 #/
-    cdef int mpv_command_node_async(mpv_handle *ctx, uint64_t reply_userdata,
+    int mpv_command_node_async(mpv_handle *ctx, uint64_t reply_userdata,
                            mpv_node *args);
 
-##*
+#*
 # Set a property to a given value. Properties are essentially variables which
 # can be queried or set at runtime. For example, writing to the pause property
 # will actually pause or unpause playback.
@@ -884,17 +891,17 @@ cdef extern from "mpv/client.h" nogil:
 # @param[in] data Option value.
 # @return error code
 #/
-    cdef int mpv_set_property(mpv_handle *ctx, const char *name, mpv_format format,
+    int mpv_set_property(mpv_handle *ctx, const char *name, mpv_format format,
                      void *data);
 
-##*
+#*
 # Convenience function to set a property to a string value.
 #
 # This is like calling mpv_set_property() with MPV_FORMAT_STRING.
 #/
-    cdef int mpv_set_property_string(mpv_handle *ctx, const char *name, const char *data);
+    int mpv_set_property_string(mpv_handle *ctx, const char *name, const char *data);
 
-##*
+#*
 # Set a property asynchronously. You will receive the result of the operation
 # as MPV_EVENT_SET_PROPERTY_REPLY event. The mpv_event.error field will contain
 # the result status of the operation. Otherwise, this function is similar to
@@ -907,10 +914,10 @@ cdef extern from "mpv/client.h" nogil:
 #                 will never be modified by the client API.
 # @return error code if sending the request failed
 #/
-    cdef int mpv_set_property_async(mpv_handle *ctx, uint64_t reply_userdata,
+    int mpv_set_property_async(mpv_handle *ctx, uint64_t reply_userdata,
                            const char *name, mpv_format format, void *data);
 
-##*
+#*
 # Read the value of the given property.
 #
 # If the format doesn't match with the internal format of the property, access
@@ -928,10 +935,10 @@ cdef extern from "mpv/client.h" nogil:
 #                  mpv_free_node_contents() (MPV_FORMAT_NODE).
 # @return error code
 #/
-    cdef int mpv_get_property(mpv_handle *ctx, const char *name, mpv_format format,
+    int mpv_get_property(mpv_handle *ctx, const char *name, mpv_format format,
                      void *data);
 
-##*
+#*
 # Return the value of the property with the given name as string. This is
 # equivalent to mpv_get_property() with MPV_FORMAT_STRING.
 #
@@ -944,18 +951,18 @@ cdef extern from "mpv/client.h" nogil:
 # @return Property value, or NULL if the property can't be retrieved. Free
 #         the string with mpv_free().
 #/
-    cdef char *mpv_get_property_string(mpv_handle *ctx, const char *name);
+    char *mpv_get_property_string(mpv_handle *ctx, const char *name);
 
-##*
+#*
 # Return the property as "OSD" formatted string. This is the same as
 # mpv_get_property_string, but using MPV_FORMAT_OSD_STRING.
 #
 # @return Property value, or NULL if the property can't be retrieved. Free
 #         the string with mpv_free().
 #/
-    cdef char *mpv_get_property_osd_string(mpv_handle *ctx, const char *name);
+    char *mpv_get_property_osd_string(mpv_handle *ctx, const char *name);
 
-##*
+#*
 # Get a property asynchronously. You will receive the result of the operation
 # as well as the property data with the MPV_EVENT_GET_PROPERTY_REPLY event.
 # You should check the mpv_event.error field on the reply event.
@@ -965,10 +972,10 @@ cdef extern from "mpv/client.h" nogil:
 # @param format see enum mpv_format.
 # @return error code if sending the request failed
 #/
-    cdef int mpv_get_property_async(mpv_handle *ctx, uint64_t reply_userdata,
+    int mpv_get_property_async(mpv_handle *ctx, uint64_t reply_userdata,
                            const char *name, mpv_format format);
 
-##*
+#*
 # Get a notification whenever the given property changes. You will receive
 # updates as MPV_EVENT_PROPERTY_CHANGE. Note that this is not very precise:
 # for some properties, it may not send updates even if the property changed.
@@ -1015,10 +1022,10 @@ cdef extern from "mpv/client.h" nogil:
 #               from the change events.
 # @return error code (usually fails only on OOM or unsupported format)
 #/
-    cdef int mpv_observe_property(mpv_handle *mpv, uint64_t reply_userdata,
+    int mpv_observe_property(mpv_handle *mpv, uint64_t reply_userdata,
                          const char *name, mpv_format format);
 
-##*
+#*
 # Undo mpv_observe_property(). This will remove all observed properties for
 # which the given number was passed as reply_userdata to mpv_observe_property.
 #
@@ -1026,79 +1033,79 @@ cdef extern from "mpv/client.h" nogil:
 # @return negative value is an error code, >=0 is number of removed properties
 #         on success (includes the case when 0 were removed)
 #/
-    cdef int mpv_unobserve_property(mpv_handle *mpv, uint64_t registered_reply_userdata);
+    int mpv_unobserve_property(mpv_handle *mpv, uint64_t registered_reply_userdata);
 
     ctypedef enum mpv_event_id:
-#
+#*
 # Nothing happened. Happens on timeouts or sporadic wakeups.
 #/
-        MPV_EVENT_NONE              = 0
-#
+        MPV_EVENT_NONE
+#*
 # Happens when the player quits. The player enters a state where it tries
 # to disconnect all clients. Most requests to the player will fail, and
 # mpv_wait_event() will always return instantly (returning new shutdown
 # events if no other events are queued). The client should react to this
 # and quit with mpv_detach_destroy() as soon as possible.
 #/
-        MPV_EVENT_SHUTDOWN          = 1
-#
+        MPV_EVENT_SHUTDOWN
+#*
 # See mpv_request_log_messages().
 #/
-        MPV_EVENT_LOG_MESSAGE       = 2
-#
+        MPV_EVENT_LOG_MESSAGE
+#*
 # Reply to a mpv_get_property_async() request.
 # See also mpv_event and mpv_event_property.
 #/
-        MPV_EVENT_GET_PROPERTY_REPLY = 3
-#
+        MPV_EVENT_GET_PROPERTY_REPLY
+#*
 # Reply to a mpv_set_property_async() request.
 # (Unlike MPV_EVENT_GET_PROPERTY, mpv_event_property is not used.)
 #/
-        MPV_EVENT_SET_PROPERTY_REPLY = 4
-#
+        MPV_EVENT_SET_PROPERTY_REPLY
+#*
 # Reply to a mpv_command_async() request.
 #/
-        MPV_EVENT_COMMAND_REPLY     = 5
-#
+        MPV_EVENT_COMMAND_REPLY
+#*
 # Notification before playback start of a file (before the file is loaded).
 #/
-        MPV_EVENT_START_FILE        = 6
-#
+        MPV_EVENT_START_FILE
+#*
 # Notification after playback end (after the file was unloaded).
 # See also mpv_event and mpv_event_end_file.
 #/
-        MPV_EVENT_END_FILE          = 7
-#
+        MPV_EVENT_END_FILE
+#*
 # Notification when the file has been loaded (headers were read etc.), and
 # decoding starts.
 #/
-        MPV_EVENT_FILE_LOADED       = 8
-#
+        MPV_EVENT_FILE_LOADED
+#*
 # The list of video/audio/subtitle tracks was changed. (E.g. a new track
-# was found. This doesn't necessarily indicate a track switch; for this
+# was found. This doesn't necessarily indicate a track switch; for this,
 # MPV_EVENT_TRACK_SWITCHED is used.)
 #
 # @deprecated This is equivalent to using mpv_observe_property() on the
 #             "track-list" property. The event is redundant, and might
 #             be removed in the far future.
 #/
-        MPV_EVENT_TRACKS_CHANGED    = 9
-#
+        MPV_EVENT_TRACKS_CHANGED
+#*
 # A video/audio/subtitle track was switched on or off.
 #
 # @deprecated This is equivalent to using mpv_observe_property() on the
-#             "vid", "aid", and "sid" properties. The event is redundant
+#             "vid", "aid", and "sid" properties. The event is redundant,
 #             and might be removed in the far future.
 #/
-        MPV_EVENT_TRACK_SWITCHED    = 10
-#
+        MPV_EVENT_TRACK_SWITCHED
+#*
 # Idle mode was entered. In this mode, no file is played, and the playback
 # core waits for new commands. (The command line player normally quits
 # instead of entering idle mode, unless --idle was specified. If mpv
 # was started with mpv_create(), idle mode is enabled by default.)
 #/
-        MPV_EVENT_IDLE              = 11
-#
+        MPV_EVENT_IDLE
+#*
 # Playback was paused. This indicates the user pause state.
 #
 # The user pause state is the state the user requested (changed with the
@@ -1118,40 +1125,40 @@ cdef extern from "mpv/client.h" nogil:
 # @deprecated The event is redundant with mpv_observe_property() as
 #             mentioned above, and might be removed in the far future.
 #/
-        MPV_EVENT_PAUSE             = 12
-#
+        MPV_EVENT_PAUSE
+#*
 # Playback was unpaused. See MPV_EVENT_PAUSE for not so obvious details.
 #
 # @deprecated The event is redundant with mpv_observe_property() as
 #             explained in the MPV_EVENT_PAUSE comments, and might be
 #             removed in the far future.
 #/
-        MPV_EVENT_UNPAUSE           = 13
-#
-# Sent every time after a video frame is displayed. Note that currently
+        MPV_EVENT_UNPAUSE
+#*
+# Sent every time after a video frame is displayed. Note that currently,
 # this will be sent in lower frequency if there is no video, or playback
 # is paused - but that will be removed in the future, and it will be
 # restricted to video frames only.
 #/
-        MPV_EVENT_TICK              = 14
-#
+        MPV_EVENT_TICK
+#*
 # @deprecated This was used internally with the internal "script_dispatch"
 #             command to dispatch keyboard and mouse input for the OSC.
 #             It was never useful in general and has been completely
-#             replaced with "script_binding".
+#             replaced with "script-binding".
 #             This event never happens anymore, and is included in this
 #             header only for compatibility.
 #/
-        MPV_EVENT_SCRIPT_INPUT_DISPATCH = 15
-#
-# Triggered by the script_message input command. The command uses the
+        MPV_EVENT_SCRIPT_INPUT_DISPATCH
+#*
+# Triggered by the script-message input command. The command uses the
 # first argument of the command as client name (see mpv_client_name()) to
 # dispatch the message, and passes along all arguments starting from the
 # second argument as strings.
 # See also mpv_event and mpv_event_client_message.
 #/
-        MPV_EVENT_CLIENT_MESSAGE    = 16
-#
+        MPV_EVENT_CLIENT_MESSAGE
+#*
 # Happens after video changed in some way. This can happen on resolution
 # changes, pixel format changes, or video filter changes. The event is
 # sent after the video filters and the VO are reconfigured. Applications
@@ -1161,13 +1168,13 @@ cdef extern from "mpv/client.h" nogil:
 # yourself whether the video parameters really changed before doing
 # something expensive.
 #/
-        MPV_EVENT_VIDEO_RECONFIG    = 17
-#
-# Similar to MPV_EVENT_VIDEO_RECONFIG. This is relatively uninteresting
+        MPV_EVENT_VIDEO_RECONFIG
+#*
+# Similar to MPV_EVENT_VIDEO_RECONFIG. This is relatively uninteresting,
 # because there is no such thing as audio output embedding.
 #/
-        MPV_EVENT_AUDIO_RECONFIG    = 18
-#
+        MPV_EVENT_AUDIO_RECONFIG
+#*
 # Happens when metadata (like file tags) is possibly updated. (It's left
 # unspecified whether this happens on file start or only when it changes
 # within a file.)
@@ -1176,33 +1183,33 @@ cdef extern from "mpv/client.h" nogil:
 #             "metadata" property. The event is redundant, and might
 #             be removed in the far future.
 #/
-        MPV_EVENT_METADATA_UPDATE   = 19
-#
+        MPV_EVENT_METADATA_UPDATE
+#*
 # Happens when a seek was initiated. Playback stops. Usually it will
 # resume with MPV_EVENT_PLAYBACK_RESTART as soon as the seek is finished.
 #/
-        MPV_EVENT_SEEK              = 20
-#
+        MPV_EVENT_SEEK
+#*
 # There was a discontinuity of some sort (like a seek), and playback
 # was reinitialized. Usually happens after seeking, or ordered chapter
 # segment switches. The main purpose is allowing the client to detect
 # when a seek request is finished.
 #/
-        MPV_EVENT_PLAYBACK_RESTART  = 21
-#
+        MPV_EVENT_PLAYBACK_RESTART
+#*
 # Event sent due to mpv_observe_property().
 # See also mpv_event and mpv_event_property.
 #/
-        MPV_EVENT_PROPERTY_CHANGE   = 22
-#
+        MPV_EVENT_PROPERTY_CHANGE
+#*
 # Happens when the current chapter changes.
 #
 # @deprecated This is equivalent to using mpv_observe_property() on the
 #             "chapter" property. The event is redundant, and might
 #             be removed in the far future.
 #/
-        MPV_EVENT_CHAPTER_CHANGE    = 23
-#
+        MPV_EVENT_CHAPTER_CHANGE
+#*
 # Happens if the internal per-mpv_handle ringbuffer overflows, and at
 # least 1 event had to be dropped. This can happen if the client doesn't
 # read the event queue quickly enough with mpv_wait_event(), or if the
@@ -1211,9 +1218,10 @@ cdef extern from "mpv/client.h" nogil:
 # Event delivery will continue normally once this event was returned
 # (this forces the client to empty the queue completely).
 #/
-        MPV_EVENT_QUEUE_OVERFLOW    = 24
+        MPV_EVENT_QUEUE_OVERFLOW
+#    // Internal note: adjust INTERNAL_EVENT_BASE when adding new events.
 
-##*
+#*
 # Return a string describing the event. For unknown events, NULL is returned.
 #
 # Note that all events actually returned by the API will also yield a non-NULL
@@ -1227,21 +1235,21 @@ cdef extern from "mpv/client.h" nogil:
 #         The string is completely static, i.e. doesn't need to be deallocated,
 #         and is valid forever.
 #/
-    cdef const char *mpv_event_name(mpv_event_id event);
+    const char *mpv_event_name(mpv_event_id event);
 
     ctypedef struct mpv_event_property:
-#
+#*
 # Name of the property.
 #/
         const char *name;
-#
+#*
 # Format of the data field in the same struct. See enum mpv_format.
 # This is always the same format as the requested format, except when
 # the property could not be retrieved (unavailable, or an error happened),
 # in which case the format is MPV_FORMAT_NONE.
 #/
         mpv_format format;
-#
+#*
 # Received property value. Depends on the format. This is like the
 # pointer argument passed to mpv_get_property().
 #
@@ -1255,7 +1263,7 @@ cdef extern from "mpv/client.h" nogil:
 #/
         void *data;
 
-##*
+#*
 # Numeric log levels. The lower the number, the more important the message is.
 # MPV_LOG_LEVEL_NONE is never used when receiving messages. The string in
 # the comment after the value is the name of the log level as used for the
@@ -1263,65 +1271,66 @@ cdef extern from "mpv/client.h" nogil:
 # Unused numeric values are unused, but reserved for future use.
 #/
     ctypedef enum mpv_log_level:
-        MPV_LOG_LEVEL_NONE  = 0     ## "no"    - disable absolutely all messages
-        MPV_LOG_LEVEL_FATAL = 10    ## "fatal" - critical/aborting errors
-        MPV_LOG_LEVEL_ERROR = 20    ## "error" - simple errors
-        MPV_LOG_LEVEL_WARN  = 30    ## "warn"  - possible problems
-        MPV_LOG_LEVEL_INFO  = 40    ## "info"  - informational message
-        MPV_LOG_LEVEL_V     = 50    ##  "v"     - noisy informational message
-        MPV_LOG_LEVEL_DEBUG = 60    ## "debug" - very noisy technical information
-        MPV_LOG_LEVEL_TRACE = 70    ## "trace" - extremely noisy
+        MPV_LOG_LEVEL_NONE
+        MPV_LOG_LEVEL_FATAL
+        MPV_LOG_LEVEL_ERROR
+        MPV_LOG_LEVEL_WARN
+        MPV_LOG_LEVEL_INFO
+        MPV_LOG_LEVEL_V
+        MPV_LOG_LEVEL_DEBUG
+        MPV_LOG_LEVEL_TRACE
 
     ctypedef struct mpv_event_log_message:
-#
+#*
 # The module prefix, identifies the sender of the message. As a special
 # case, if the message buffer overflows, this will be set to the string
 # "overflow" (which doesn't appear as prefix otherwise), and the text
 # field will contain an informative message.
 #/
         const char *prefix;
-#
+#*
 # The log level as string. See mpv_request_log_messages() for possible
 # values. The level "no" is never used here.
 #/
         const char *level;
-#
+#*
 # The log message. It consists of 1 line of text, and is terminated with
 # a newline character. (Before API version 1.6, it could contain multiple
 # or partial lines.)
 #/
         const char *text;
-#
+#*
 # The same contents as the level field, but as a numeric ID.
 # Since API version 1.6.
 #/
         mpv_log_level log_level;
 
+#    /// Since API version 1.9.
     ctypedef enum mpv_end_file_reason:
-#
+#*
 # The end of file was reached. Sometimes this may also happen on
 # incomplete or corrupted files, or if the network connection was
 # interrupted when playing a remote file. It also happens if the
 # playback range was restricted with --end or --frames or similar.
 #/
-        MPV_END_FILE_REASON_EOF = 0
-#
+        MPV_END_FILE_REASON_EOF
+#*
 # Playback was stopped by an external action (e.g. playlist controls).
 #/
-        MPV_END_FILE_REASON_STOP = 2
-#
+        MPV_END_FILE_REASON_STOP
+#*
 # Playback was stopped by the quit command or player shutdown.
 #/
-        MPV_END_FILE_REASON_QUIT = 3
-#
+        MPV_END_FILE_REASON_QUIT
+#*
 # Some kind of error happened that lead to playback abort. Does not
 # necessarily happen on incomplete or broken files (in these cases, both
 # MPV_END_FILE_REASON_ERROR or MPV_END_FILE_REASON_EOF are possible).
 #
 # mpv_event_end_file.error will be set.
 #/
-        MPV_END_FILE_REASON_ERROR = 4
-#
+        MPV_END_FILE_REASON_ERROR
+#*
 # The file was a playlist or similar. When the playlist is read, its
 # entries will be appended to the playlist after the entry of the current
 # file, the entry of the current file is removed, and a MPV_EVENT_END_FILE
@@ -1329,32 +1338,32 @@ cdef extern from "mpv/client.h" nogil:
 # playback continues with the playlist contents.
 # Since API version 1.18.
 #/
-        MPV_END_FILE_REASON_REDIRECT = 5
+        MPV_END_FILE_REASON_REDIRECT
 
     ctypedef struct mpv_event_end_file:
-#
+#*
 # Corresponds to the values in enum mpv_end_file_reason (the "int" type
 # will be replaced with mpv_end_file_reason on the next ABI bump).
 #
 # Unknown values should be treated as unknown.
 #/
         int reason;
-#
-# If reason==MPV_END_FILE_REASON_ERROR, this contains a mpv error code
+#*
+# If reason
 # (one of MPV_ERROR_...) giving an approximate reason why playback
 # failed. In other cases, this field is 0 (no error).
 # Since API version 1.9.
 #/
         int error;
 
-##* @deprecated see MPV_EVENT_SCRIPT_INPUT_DISPATCH for remarks
+#* @deprecated see MPV_EVENT_SCRIPT_INPUT_DISPATCH for remarks
 #/
     ctypedef struct mpv_event_script_input_dispatch:
         int arg0;
         const char *type;
 
     ctypedef struct mpv_event_client_message:
-#
+#*
 # Arbitrary arguments chosen by the sender of the message. If num_args > 0,
 # you can access args[0] through args[num_args - 1] (inclusive). What
 # these arguments mean is up to the sender and receiver.
@@ -1364,12 +1373,12 @@ cdef extern from "mpv/client.h" nogil:
         const char **args;
 
     ctypedef struct mpv_event:
-#
+#*
 # One of mpv_event. Keep in mind that later ABI compatible releases might
 # add new event types. These should be ignored by the API user.
 #/
         mpv_event_id event_id;
-#
+#*
 # This is mainly used for events that are replies to (asynchronous)
 # requests. It contains a status code, which is >= 0 on success, or < 0
 # on error (a mpv_error value). Usually, this will be set if an
@@ -1380,7 +1389,7 @@ cdef extern from "mpv/client.h" nogil:
 #  MPV_EVENT_COMMAND_REPLY
 #/
         int error;
-#
+#*
 # If the event is in reply to a request (made with this API and this
 # API handle), this is set to the reply_userdata parameter of the request
 # call. Otherwise, this field is 0.
@@ -1391,7 +1400,7 @@ cdef extern from "mpv/client.h" nogil:
 #  MPV_EVENT_PROPERTY_CHANGE
 #/
         uint64_t reply_userdata;
-#
+#*
 # The meaning and contents of the data member depend on the event_id:
 #  MPV_EVENT_GET_PROPERTY_REPLY:     mpv_event_property*
 #  MPV_EVENT_PROPERTY_CHANGE:        mpv_event_property*
@@ -1405,7 +1414,7 @@ cdef extern from "mpv/client.h" nogil:
 #/
         void *data;
 
-##*
+#*
 # Enable or disable the given event.
 #
 # Some events are enabled by default. Some events can't be disabled.
@@ -1417,24 +1426,24 @@ cdef extern from "mpv/client.h" nogil:
 # @param enable 1 to enable receiving this event, 0 to disable it.
 # @return error code
 #/
-    cdef int mpv_request_event(mpv_handle *ctx, mpv_event_id event, int enable);
+    int mpv_request_event(mpv_handle *ctx, mpv_event_id event, int enable);
 
-##*
+#*
 # Enable or disable receiving of log messages. These are the messages the
 # command line player prints to the terminal. This call sets the minimum
 # required log level for a message to be received with MPV_EVENT_LOG_MESSAGE.
 #
 # @param min_level Minimal log level as string. Valid log levels:
-#                      no fatal error warn info status v debug trace
+#                      no fatal error warn info v debug trace
 #                  The value "no" disables all messages. This is the default.
 #                  An exception is the value "terminal-default", which uses the
 #                  log level as set by the "--msg-level" option. This works
 #                  even if the terminal is disabled. (Since API version 1.19.)
 #                  Also see mpv_log_level.
 #/
-    cdef int mpv_request_log_messages(mpv_handle *ctx, const char *min_level);
+    int mpv_request_log_messages(mpv_handle *ctx, const char *min_level);
 
-##*
+#*
 # Wait for the next event, or until the timeout expires, or if another thread
 # makes a call to mpv_wakeup(). Passing 0 as timeout will never wait, and
 # is suitable for polling.
@@ -1462,9 +1471,9 @@ cdef extern from "mpv/client.h" nogil:
 #         released by the API on the next mpv_wait_event() call, or when the
 #         context is destroyed. The return value is never NULL.
 #/
-    cdef mpv_event *mpv_wait_event(mpv_handle *ctx, double timeout);
+    mpv_event *mpv_wait_event(mpv_handle *ctx, double timeout);
 
-##*
+#*
 # Interrupt the current mpv_wait_event() call. This will wake up the thread
 # currently waiting in mpv_wait_event(). If no thread is waiting, the next
 # mpv_wait_event() call will return immediately (this is to avoid lost
@@ -1475,9 +1484,9 @@ cdef extern from "mpv/client.h" nogil:
 # already other events queued. All what counts is that the waiting thread
 # is woken up at all.
 #/
-    cdef void mpv_wakeup(mpv_handle *ctx);
+    void mpv_wakeup(mpv_handle *ctx);
 
-##*
+#*
 # Set a custom function that should be called when there are new events. Use
 # this if blocking in mpv_wait_event() to wait for new events is not feasible.
 #
@@ -1505,9 +1514,9 @@ cdef extern from "mpv/client.h" nogil:
 # @param cb function that should be called if a wakeup is required
 # @param d arbitrary userdata passed to cb
 #/
-    cdef void mpv_set_wakeup_callback(mpv_handle *ctx, void (*cb)(void *d), void *d);
+    void mpv_set_wakeup_callback(mpv_handle *ctx, void (*cb)(void *d), void *d);
 
-##*
+#*
 # Return a UNIX file descriptor referring to the read end of a pipe. This
 # pipe can be used to wake up a poll() based processing loop. The purpose of
 # this function is very similar to mpv_set_wakeup_callback(), and provides
@@ -1561,9 +1570,9 @@ cdef extern from "mpv/client.h" nogil:
 # @return A UNIX FD of the read end of the wakeup pipe, or -1 on error.
 #         On MS Windows/MinGW, this will always return -1.
 #/
-    cdef int mpv_get_wakeup_pipe(mpv_handle *ctx);
+    int mpv_get_wakeup_pipe(mpv_handle *ctx);
 
-##*
+#*
 # Block until all asynchronous requests are done. This affects functions like
 # mpv_command_async(), which return immediately and return their result as
 # events.
@@ -1575,12 +1584,25 @@ cdef extern from "mpv/client.h" nogil:
 # In case you called mpv_suspend() before, this will also forcibly reset the
 # suspend counter of the given handle.
 #/
-    cdef void mpv_wait_async_requests(mpv_handle *ctx);
-    ctypedef enum mpv_sub_api:
-        MPV_SUB_API_OPENGL_CB = 1
+    void mpv_wait_async_requests(mpv_handle *ctx);
 
-##*
+    ctypedef enum mpv_sub_api:
+#*
+# For using mpv's OpenGL renderer on an external OpenGL context.
+# mpv_get_sub_api(MPV_SUB_API_OPENGL_CB) returns mpv_opengl_cb_context*.
+# This context can be used with mpv_opengl_cb_* functions.
+# Will return NULL if unavailable (if OpenGL support was not compiled in).
+# See opengl_cb.h for details.
+#/
+        MPV_SUB_API_OPENGL_CB
+
+#*
 # This is used for additional APIs that are not strictly part of the core API.
 # See the individual mpv_sub_api member values.
 #/
-    cdef void *mpv_get_sub_api(mpv_handle *ctx, mpv_sub_api sub_api);
+    void *mpv_get_sub_api(mpv_handle *ctx, mpv_sub_api sub_api);
+
+#ifdef __cplusplus
+#endif
+
+#endif

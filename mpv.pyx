@@ -24,6 +24,7 @@ from libc.stdlib cimport malloc, free
 from libc.string cimport strcpy
 
 from client cimport *
+from opengl_cb cimport *
 
 __version__ = "0.3.0"
 __author__ = "Andre D"
