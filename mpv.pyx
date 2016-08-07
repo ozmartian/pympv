@@ -852,9 +852,8 @@ class CallbackThread(Thread):
                 cb = self.callbacks.get(True)
                 if cb:
                     self.mpv_callback(cb)
-            except 
-            if !self.callbacks.empty():
-                self.mpv_callback(self.callbacks)
+            except :
+                pass
 
     def mpv_callback(self, callback):
         try:
