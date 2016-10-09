@@ -20,7 +20,12 @@ For more info see: https://github.com/mpv-player/mpv/blob/master/libmpv/client.h
 
 import sys
 from threading import Thread, Semaphore
-from queue import Queue, Empty, Full
+import locale
+locale.setlocale(locale.LC_NUMERIC,'C')
+try:
+    from queue import Queue, Empty, Full
+except ImportError:
+    from Queue import Queue, Empty, Full
 from libc.stdlib cimport malloc, free
 from libc.string cimport strcpy
 
@@ -739,6 +744,9 @@ cdef class Context(object):
             self._ctx = mpv_create()
         if not self._ctx:
             raise MPVError("Context creation error")
+        with nogil:
+            err = mpv_initialize(self._ctx)
+
         self.properties = set()
         self.options    = set()
         self.callbackthread = CallbackThread()
@@ -756,13 +764,13 @@ cdef class Context(object):
             except:
                 pass
         self.callbackthread.start()
-        with nogil: 
-            err = mpv_initialize(self._ctx)
         if err == 0:
             for prop in self.get_property("property-list"):
                 self.properties.add(prop.replace('_','-'))
             for op   in self.get_property('options'):
                 self.options.add(op.replace('_','-'))
+        else:
+            raise MPVError(err)
 
     def observe_property(self, prop, data=None):
         """Wraps: mpv_observe_property"""
