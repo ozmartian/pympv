@@ -14,7 +14,7 @@ from __future__ import print_function, division
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
+import pathlib
 from subprocess import call
 from distutils.core import setup
 from distutils.extension import Extension
@@ -23,21 +23,27 @@ from Cython.Distutils import build_ext
 from Cython.Build import cythonize
 
 def tryremove(filename):
-    if not os.path.isfile(filename):
+    pth = pathlib.Path(filename).absolute()
+    if not pth.exists() or not pth.is_file():
         return
-    try: os.remove(filename)
-    except OSError as e:
+    try:
+        pth.unlink()
+    except Exception as e:
         print(e)
 
 class Clean(clean):
     side_effects = [
-        "mpv.c",
+        "mpv.cpp","mpv.c"
     ]
     def run(self):
         for f in self.side_effects:
             tryremove(f)
         clean.run(self)
 setup(
+    name="mpv",
+    version='0.0.1',
+    description='cython wrapper around libmpv',
+    url = "https://github.com/gdkar/pympv.git",
     cmdclass = {
         "build_ext": build_ext,
         "clean": Clean,
@@ -45,11 +51,12 @@ setup(
     ext_modules = cythonize([Extension("mpv", ["mpv.pyx"], libraries=['mpv'],language="c++")],compiler_directives={
         "embedsignature":True,
         "always_allow_kwords":True,
-        "cdivision_warnings":True,
+        "cdivision_warnings":False,
         "cdivision":True,
         "infer_types":True,
         "boundscheck":False,
         "overflowcheck":False,
         "wraparound":False},
-        )
+        ),
+        zip_safe = False
 )

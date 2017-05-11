@@ -29,6 +29,7 @@ try:
     from queue import Queue, Empty, Full
 except ImportError:
     from Queue import Queue, Empty, Full
+from collections import UserDict
 from libc.stdlib cimport malloc, free
 from libc.string cimport strcpy
 
@@ -73,7 +74,7 @@ cdef _strenc(s):
 
 PyEval_InitThreads()
 
-class Errors(IntEnum):
+class Error(IntEnum):
     """Set of known error codes from MpvError and Event responses.
 
     Mostly wraps the enum mpv_error.
@@ -101,6 +102,11 @@ class Errors(IntEnum):
     unknown_format = MPV_ERROR_UNKNOWN_FORMAT
     unsupported = MPV_ERROR_UNSUPPORTED
     not_implemented = MPV_ERROR_NOT_IMPLEMENTED
+
+    def __init__(self, int val):
+        cdef const char* err_c
+        with nogil:err_c = mpv_error_string(val)
+        self.error_str = _strdec(err_c)
 
 class Events(IntEnum):
     """Set of known values for Event ids.
@@ -133,6 +139,10 @@ class Events(IntEnum):
     playback_restart = MPV_EVENT_PLAYBACK_RESTART
     property_change = MPV_EVENT_PROPERTY_CHANGE
     chapter_change = MPV_EVENT_CHAPTER_CHANGE
+    def __init__(self, mpv_event_id val):
+        cdef const char* err_c
+        with nogil:err_c = mpv_event_name(val)
+        self.event_name = _strdec(err_c)
 
 class LogLevels(IntEnum):
     no = MPV_LOG_LEVEL_NONE
@@ -258,27 +268,18 @@ cdef class Property(object):
     cdef Property create(mpv_event_property* prop):
         return Property()._init(prop)
 
-cdef dict _error_string_cache = dict()
-
-@cython.freelist(256)
+@cython.freelist(1024)
 cdef class Event(object):
     """Wraps: mpv_event"""
     cdef object __weakref__
-    cdef public mpv_event_id id
-    cdef public int    error
+    cdef public object id
+    cdef public object error
     cdef public object data
     cdef public object reply_userdata
-    cdef readonly object _name
-#    property error_str:
     @property
     def error_str(self):
         """mpv_error_string of the error proeprty"""
-        cdef const char* err_c
-        if not self.error in _error_string_cache:
-            with nogil:
-                err_c = mpv_error_string(self.error)
-            _error_string_cache[self.error] = _strdec(err_c)
-        return _error_string_cache[self.error]
+        return self.error.error_str
 
 #        with nogil:
 #            err_c = mpv_error_string(self.error)
@@ -306,12 +307,7 @@ cdef class Event(object):
     @property
     def name(self):
         """mpv_event_name of the event id"""
-        cdef const char* name_c
-        if self._name is None:
-            with nogil:
-                name_c = mpv_event_name(self.id)
-            self._name = _strdec(name_c)
-        return self._name
+        return self.id.event_name
 
     @staticmethod
     cdef Event create(mpv_event* event, ctx):
@@ -319,17 +315,15 @@ cdef class Event(object):
 
     cdef _init(self, mpv_event* event, ctx):
         cdef uint64_t ctxid = <uint64_t>id(ctx)
-        self.id = event.event_id
+        self.id = Events(event.event_id)
         self.data = self._data(event)
         userdata = _reply_userdatas[ctxid].get(event.reply_userdata, None)
-        if userdata is not None and self.id != MPV_EVENT_PROPERTY_CHANGE:
-            userdata.remove()
-            if not userdata.observed and userdata.counter <= 0:
-                del _reply_userdatas[ctxid][event.reply_userdata]
         if userdata is not None:
+            if self.id != MPV_EVENT_PROPERTY_CHANGE:
+                userdata.observed=False
             userdata = userdata.data
         self.reply_userdata = userdata
-        self.error = event.error
+        self.error = Error(event.error)
         return self
 
 def _errors(fn):
@@ -343,45 +337,53 @@ class MPVError(Exception):
     __cache__ = {}
     code = None
     message = None
-    @classmethod
-    def get_cached(cls, code):
-        cdef const char *e_c
-        cdef int e_i = code
-        if not code in cls.__cache__:
-            with nogil:
-                e_c = mpv_error_string(e_i)
-            cls.__cache__[code] = _strdec(e_c)
-        return cls.__cache__[code]
-
     def __init__(self, e):
         cdef int e_i
         cdef const char* e_c
-        if isinstance(e,(int)):
+        if isinstance(e,Error):
+            self.code = e
+        elif isinstance(e,(int,)):
             e_i = e
-            self.code = Errors(e)
-            e = self.__class__.get_cached(e_i)
+            self.code = Error(e_i)
+        if isinstance(self.code,Error):
+            e = self.code.error_str
         elif not isinstance(e,str):
             e = str(e)
         super().__init__(e)
 
-cdef dict _callbacks = dict()
-cdef dict _reply_userdatas = dict()
+cdef object _callbacks = weakref.WeakValueDictionary()
+cdef object _reply_userdatas = weakref.WeakValueDictionary()
 #cdef dict _reply_userdatas = dict()
 
 @cython.freelist(256)
 cdef class _ReplyUserData(object):
     cdef object __weakref__
     cdef public int    counter
+    cdef public object wref
     cdef public object data
-    cdef public bint   observed
-    def __cinit__(self, data):
+    def __cinit__(self, data, wref = None):
         self.counter = 0
         self.data = data
-        self.observed = False
+        if wref is not None:self.wref = weakref.ref(wref)
+        else: self.wref = None
+
+    @property
+    def observed(self):
+        return self.count > 0
+    @observed.setter
+    def observed(self, bint v):
+        if v: self.add()
+        else: self.rem()
+
     def add(self):
         self.counter += 1
-    def remove(self):
+    def rem(self):
+        cdef uint64_t data_id
         self.counter -= 1
+        ref = self.wref()
+        if self.counter <= 0 and ref:
+            data_id = <uint64_t>hash(self.data)
+            if data_id in ref:del ref[data_id]
 
 cdef class Context(object):
     """Base class wrapping a context to interact with mpv.
@@ -391,7 +393,7 @@ cdef class Context(object):
     Wraps: mpv_create, mpv_destroy and all mpv_handle related calls
     """
     cdef object __weakref__
-    cdef dict reply_userdata
+    cdef object reply_userdata
     cdef mpv_handle *_ctx
     cdef readonly object callback
     cdef readonly object callbackthread
@@ -405,8 +407,7 @@ cdef class Context(object):
         Wraps: mpv_client_name
         """
         cdef const char* name
-        with nogil:
-            name = mpv_client_name(self._ctx)
+        with nogil: name = mpv_client_name(self._ctx)
         return _strdec(name)
 
     @property
@@ -418,22 +419,19 @@ cdef class Context(object):
         Wraps: mpv_get_time_us
         """
         cdef int64_t time
-        with nogil:
-            time = mpv_get_time_us(self._ctx)
+        with nogil: time = mpv_get_time_us(self._ctx)
         return time
     def __dir__(self):
         return [*set(map(lambda x:x.replace('-','_'),self.properties|self.options)),*super().__dir__()]
     def suspend(self):
         """Wraps: mpv_suspend"""
         assert self._ctx
-        with nogil:
-            mpv_suspend(self._ctx)
+        with nogil: mpv_suspend(self._ctx)
 
     def resume(self):
         """Wraps: mpv_resume"""
         assert self._ctx
-        with nogil:
-            mpv_resume(self._ctx)
+        with nogil: mpv_resume(self._ctx)
 
     def request_event(self, event, enable):
         """Enable or disable a given event.
@@ -447,30 +445,27 @@ cdef class Context(object):
         cdef int enable_i = 1 if enable else 0
         cdef int err
         cdef mpv_event_id event_id = event
-        with nogil:
-            err = mpv_request_event(self._ctx, event_id, enable_i)
+        with nogil: err = mpv_request_event(self._ctx, event_id, enable_i)
         if err < 0: raise MPVError(err)
-        return err;
+        return Error(err);
 
     def set_log_level(self, loglevel):
         """Wraps: mpv_request_log_messages"""
         loglevel = _strenc(loglevel)
         cdef const char* loglevel_c = loglevel
         cdef int err
-        with nogil:
-            err = mpv_request_log_messages(self._ctx, loglevel_c)
+        with nogil: err = mpv_request_log_messages(self._ctx, loglevel_c)
         if err < 0: raise MPVError(err)
-        return err;
+        return Error(err);
 
     def load_config(self, filename):
         """Wraps: mpv_load_config_file"""
         filename = _strenc(filename)
         cdef const char* _filename = filename
         cdef int err
-        with nogil:
-            err = mpv_load_config_file(self._ctx, _filename)
+        with nogil: err = mpv_load_config_file(self._ctx, _filename)
         if err < 0: raise MPVError(err)
-        return err;
+        return Error(err);
 
     cdef _format_for(self, value):
         if   isinstance(value, str):            return MPV_FORMAT_STRING
@@ -568,22 +563,17 @@ cdef class Context(object):
         try:
             data_id = id(data)
             if not _async:
-                with nogil:
-                    err = mpv_command_node(self._ctx, &node, &noderesult)
-                try:
-                    result = _convert_node_value(noderesult) if err >= 0 else None
+                with nogil: err = mpv_command_node(self._ctx, &node, &noderesult)
+                try:        result = _convert_node_value(noderesult) if err >= 0 else None
                 finally:
-                    with nogil:
-                        mpv_free_node_contents(&noderesult)
+                    with nogil: mpv_free_node_contents(&noderesult)
             else:
                 userdatas = self.reply_userdata.get(data_id, None)
                 if userdatas is None:
-                    _reply_userdatas[data_id] = userdatas = _ReplyUserData(data)
-                userdatas.add()
-                with nogil:
-                    err = mpv_command_node_async(self._ctx, data_id, &node)
-        finally:
-            self._free_native_value(node)
+                    _reply_userdatas[data_id] = userdatas = _ReplyUserData(data, self.reply_userdata)
+                userdatas.observed=True
+                with nogil: err = mpv_command_node_async(self._ctx, data_id, &node)
+        finally: self._free_native_value(node)
         if err < 0:
             raise MPVError(err)
         return result
@@ -602,8 +592,8 @@ cdef class Context(object):
         cdef uint64_t id_data = <uint64_t>hash(data)
         userdatas = self.reply_userdata.get(id_data, None)
         if userdatas is None:
-            self.reply_userdata[id_data] = userdatas = _ReplyUserData(data)
-        userdatas.add()
+            self.reply_userdata[id_data] = userdatas = _ReplyUserData(data,self.reply_userdata)
+        userdatas.observed=True
         cdef const char* prop_c = prop
         with nogil:
             err = mpv_get_property_async(
@@ -613,7 +603,7 @@ cdef class Context(object):
                 MPV_FORMAT_NODE,
             )
         if err < 0: raise MPVError(err)
-        return err;
+        return Error(err)
 
     def try_get_property_async(self, prop, data=None, default=None):
         try:
@@ -672,12 +662,12 @@ cdef class Context(object):
                         MPV_FORMAT_NODE,
                         &v
                     )
-                return err
+                return Error(err)
             data_id = <uint64_t>hash(data)
             userdatas = self.reply_userdata.get(data_id, None)
             if userdatas is None:
-                self.reply_userdata[data_id] = userdatas = _ReplyUserData(data)
-            userdatas.add()
+                self.reply_userdata[data_id] = userdatas = _ReplyUserData(data, self.reply_userdata)
+            userdatas.observed = True
             with nogil:
                 err = mpv_set_property_async(
                     self._ctx,
@@ -688,7 +678,7 @@ cdef class Context(object):
                 )
         finally:
             self._free_native_value(v)
-        return err
+        return Error(err)
 
     def __getattr__(self,name):
         name = name.replace('_','-')
@@ -702,14 +692,16 @@ cdef class Context(object):
                 self.properties.add(name)
                 return ret
             except MPVError as e:
-                if e.code != MPV_ERROR_PROPERTY_NOT_FOUND:
+                if e.code not in ( MPV_ERROR_OPTION_NOT_FOUND,
+                                   MPV_ERROR_PROPERTY_NOT_FOUND ):
                     raise AttributeError(*e.args)
             try:
                 ret = self.get_property('options/'+name)
                 self.options.add(name)
                 return ret
             except MPVError as e:
-                if e.code != MPV_ERROR_OPTION_NOT_FOUND:
+                if e.code not in ( MPV_ERROR_OPTION_NOT_FOUND,
+                                   MPV_ERROR_PROPERTY_NOT_FOUND):
                     raise AttributeError(*e.args)
         raise AttributeError
 
@@ -725,14 +717,14 @@ cdef class Context(object):
                 self.properties.add(name)
                 return
             except MPVError as e:
-                if e.code != Errors.not_found:
+                if e.code != Error.not_found:
                     raise AttributeError(*e.args)
             try:
                 self.set_option(name,value)
                 self.options.inert(name)
                 return
             except MPVError as e:
-                if e.code != Errors.not_found:
+                if e.code != Error.not_found:
                     raise AttributeError(*e.args)
             raise AttributeError
         return
@@ -757,31 +749,54 @@ cdef class Context(object):
         finally:
             self._free_native_value(v)
         if err < 0: raise MPVError(err)
-        return err
+        return Error(err)
 
     def wait_event(self, timeout=None):
         """Wraps: mpv_wait_event"""
         assert self._ctx
         cdef double timeout_d = timeout if timeout is not None else -1
         cdef mpv_event* event = NULL
-        with nogil:
-            event = mpv_wait_event(self._ctx, timeout_d)
+        with nogil: event = mpv_wait_event(self._ctx, timeout_d)
         return Event.create(event,self)
 
     def wakeup(self):
         """Wraps: mpv_wakeup"""
         assert self._ctx
-        with nogil:
-            mpv_wakeup(self._ctx)
-
+        with nogil: mpv_wakeup(self._ctx)
     def set_wakeup_callback(self, callback):
         """Wraps: mpv_set_wakeup_callback"""
         assert self._ctx
-        cdef uint64_t name = <uint64_t>id(self)
-        self.callback      = callback
-        self.callbackthread.set(callback)
+        cdef uint64_t ctxid = <uint64_t>id(self)
+        if isinstance(self.callback, CallbackThread):
+            self.callback.shutdown()
+            self.callback = None
+        if callback is not None:
+            _callbacks[ctxid] = self.callback = callback;
+        elif ctxid in _callbacks: del _callbacks[ctxid]
+        _callbacks[ctxid] = self.callback
+        with nogil: mpv_set_wakeup_callback(self._ctx, _c_callback, <void*>ctxid)
+
+    def set_wakeup_callback_thread(self, callback):
+        """Wraps: mpv_set_wakeup_callback"""
+        assert self._ctx
+        cdef uint64_t ctxid = <uint64_t>id(self)
+
+#        self.callback = callback
+        if not isinstance(self.callback, CallbackThread):
+            self.callback = CallbackThread(str(ctxid))
+            self.callback.set(callback)
+            self.callback.start()
+        elif self.callback:
+            self.callback.set(callback)
+        if self.callbackthread is None:
+            _callbacks[ctxid] = self.callbackthread = CallbackThread(str(ctxid))
+            self.callbackthread.set(callback)
+            self.callbackthread.start()
+        else:
+            self.callbackthread.set(callback)
+
         with nogil:
-            mpv_set_wakeup_callback(self._ctx, _c_callback, <void*>name)
+            mpv_set_wakeup_callback(self._ctx, _c_callback, <void*>ctxid)
 
     def get_wakeup_pipe(self):
         """Wraps: mpv_get_wakeup_pipe"""
@@ -795,37 +810,54 @@ cdef class Context(object):
         cdef uint64_t ctxid = <uint64_t>id(self)
         cdef int err = 0
         self._ctx = NULL
-        with nogil:         self._ctx = mpv_create()
-        if not self._ctx:   raise MPVError("Context creation error")
-
-        with nogil:     err = mpv_initialize(self._ctx)
-        if err != 0:
+        cdef mpv_handle *_ctx = NULL
+        cdef Context other = None
+        cdef str name
+        cdef const char *c_name = NULL
+        _other = kwargs.pop('other',None)
+        if isinstance(other, Context):
+            other = _other
+            _ctx = other._ctx
+            name = kwargs.pop('name','client')
+            c_name = name
             with nogil:
-                mpv_terminate_destroy(self._ctx)
-            self._ctx = NULL
-            raise MPVError(err)
+                self._ctx = mpv_create_client(_ctx,c_name)
+            if not self._ctx:
+                raise MPVError("Context creation error")
+        else:
+            with nogil:
+                self._ctx = mpv_create()
+            if not self._ctx:
+                raise MPVError("Context creation error")
+            with nogil:
+                err = mpv_initialize(self._ctx)
+            if err != 0:
+                with nogil:
+                    mpv_terminate_destroy(self._ctx)
+                self._ctx = NULL
+                raise MPVError(err)
 
 #    def __init__(self, *args, **kwargs):
 #        cdef uint64_t ctxid = <uint64_t>id(self)
 #        cdef int err = 0
         self.properties = set()
         self.options    = set()
-        _callbacks[ctxid] = self.callbackthread = CallbackThread(str(ctxid))
-        _reply_userdatas[ctxid] = self.reply_userdata = dict()
+#        _callbacks[ctxid] = self.callbackthread = CallbackThread(str(ctxid))
+        _reply_userdatas[ctxid] = self.reply_userdata = UserDict()
         for op in args:
             try:    self.set_option(op)
             except: pass
         for op,val in kwargs.iteritems():
             try:    self.set_option(op,val)
             except: pass
-        self.callbackthread.start()
-        if err == 0:
-            for prop in self.get_property("property-list"):
-                self.properties.add(prop.replace('_','-'))
-            for op   in self.get_property('options'):
-                self.options.add(op.replace('_','-'))
-        else:
-            raise MPVError(err)
+#        self.callbackthread.start()
+        for prop in self.get_property("property-list"):
+            self.properties.add(prop.replace('_','-'))
+        for op   in self.get_property('options'):
+            self.options.add(op.replace('_','-'))
+
+    def copy(self,name='dup', *args, **kwargs):
+        return Context(other=self,name=name, *args, **kwargs)
 
     def observe_property(self, prop, data=None):
         """Wraps: mpv_observe_property"""
@@ -850,7 +882,7 @@ cdef class Context(object):
             )
         if  err < 0:
             raise MPVError(err)
-        return err;
+        return Error(err);
 
     def unobserve_property(self, data):
         """Wraps: mpv_unobserve_property"""
@@ -860,8 +892,6 @@ cdef class Context(object):
         userdatas = self.reply_userdata.get(id_data, None)
         if userdatas is not None:
             userdatas.observed = False
-            if userdatas.counter <= 0:
-                del self.reply_userdata[id_data]
         with nogil:
             err = mpv_unobserve_property(
                 self._ctx,
@@ -869,66 +899,81 @@ cdef class Context(object):
             )
         if  err < 0:
             raise MPVError(err)
-        return err;
-
-    def shutdown(self):
+        return Error(err);
+    def detach(self):
         cdef uint64_t ctxid = <uint64_t>id(self)
-        if not self.callbackthread is None:
+        if self.callbackthread is not None:
             self.callbackthread.shutdown()
-
-        if self._ctx != NULL:
+        cdef mpv_handle *_ctx = self._ctx
+        self._ctx = NULL
+        if _ctx != NULL:
             with nogil:
-                mpv_terminate_destroy(self._ctx)
-            self._ctx = NULL
+                mpv_detach_destroy(_ctx)
 
-#            self.callbackthread.join()
         if ctxid in _callbacks:      del _callbacks[ctxid]
         if ctxid in _reply_userdatas:del _reply_userdatas[ctxid]
         self.callback       = None
         self.reply_userdata = None
-#            if self.callbackthread.isAlive() and not self.callbackthread.callbacks.empty():
-#                self.callbackthread.callbacks.join()
-#                self.callbackthread.join()
-#            self.callbackthread.callbacks.join()
+
+    def shutdown(self):
+        cdef uint64_t ctxid = <uint64_t>id(self)
+        if self.callbackthread is not None:
+            self.callbackthread.shutdown()
+
+        cdef mpv_handle *_ctx = self._ctx
+        self._ctx = NULL
+        if _ctx != NULL:
+            with nogil:
+                mpv_terminate_destroy(_ctx)
+
+        if ctxid in _callbacks:      del _callbacks[ctxid]
+        if ctxid in _reply_userdatas:del _reply_userdatas[ctxid]
+        self.callback       = None
+        self.reply_userdata = None
 
     def __dealloc__(self):
-        self.shutdown()
+        self.detach()
+
+def _mpv_callback(callback not None):
+    try: callback()
+    except Exception as e:
+        sys.stderr.write("pympv error during callback: {}\n".format(e))
+        sys.stderr.flush()
 
 class CallbackThread(Thread):
     @staticmethod
-    def mpv_callback(callback):
-        try:
-            callback()
-        except Exception as e:
-            sys.stderr.write("pympv error during callback: {}\n".format(e))
-
+    def mpv_callback(cb):
+        if cb: _mpv_callback(cb)
     def __init__(self, name=None):
         super().__init__(name=(  name + "-mpv-cbthread" if name else "mpv-cbthread"), daemon = True)
         self.daemon    = True
-        self.callback  = thread_exit
-        self.callbacks = Queue()
+        self.cb  = thread_exit
+        self.cbq = Queue()
 
     def shutdown(self):
-        self.callback = None
-        if self.isAlive():
-            self.callbacks.put(thread_exit)
+        self.cb = None
+        if self.isAlive(): self.cbq.put(thread_exit)
 
-    def call(self, cb = None):
-        self.callbacks.put(cb or self.callback)
+    def __call__(self, cb = None):
+        self.cbq.put(cb or self.cb)
 
-    def set(self, callback):
-        self.callback = callback
+    def set(self, cb):
+        self.cbq = cb
 
     def run(self):
         while True:
-            try:
-                cb = self.callbacks.get()
-            else:
-                self.mpv_callback(cb)
-            finally:
-                self.callbacks.task_done()
+            try:    cb = self.cbq.get()
+            else:   self.mpv_callback(cb)
+            finally:self.cbq.task_done()
+
+cdef void *_c_getprocaddress(void *d, const char *fname) with gil:
+    cdef uint64_t name = <uint64_t>d
+    cb = _callbacks.get(name,None)
+    cdef uint64_t res = 0
+    if cb: res = <uint64_t>cb(fname)
+    return <void*>res
 
 cdef void _c_callback(void* d) with gil:
     cdef uint64_t name = <uint64_t>d
     cb = _callbacks.get(name,None)
-    if cb: cb.call()
+    if cb: _mpv_callback(cb)
