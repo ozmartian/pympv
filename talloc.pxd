@@ -20,7 +20,7 @@ cdef extern from "talloc.h" nogil:
 
     void talloc_set_destructor(const void *ptr, int (*destructor)(void *));
     void *talloc_steal(const void *new_ctx, const void *ptr);
-    const char *talloc_set_name(const void *ptr, const char *fmt, ...) 
+    const char *talloc_set_name(const void *ptr, const char *fmt, ...)
     void *talloc_move(const void *new_ctx, void **pptr);
     void talloc_set_name_const(const void *ptr, const char *name);
     void *talloc_named(const void *context, size_t size,
