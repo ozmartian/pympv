@@ -521,8 +521,8 @@ cdef class Context(object):
         if err < 0:
             raise MPVError(err)
         return Error(err);
-    @staticmethod
-    cdef mpv_format _format_for(value):
+
+    cdef mpv_format _format_for(self, value):
         if   isinstance(value, str):            return MPV_FORMAT_STRING
         elif isinstance(value, bool):           return MPV_FORMAT_FLAG
         elif isinstance(value, int):            return MPV_FORMAT_INT64
@@ -530,8 +530,8 @@ cdef class Context(object):
         elif isinstance(value, (tuple, list)):  return MPV_FORMAT_NODE_ARRAY
         elif isinstance(value, dict):           return MPV_FORMAT_NODE_MAP
         else:                                   return MPV_FORMAT_NONE
-    @classmethod
-    cdef mpv_node_list* _prep_node_list(cls, values, void *ctx = NULL):
+
+    cdef mpv_node_list* _prep_node_list(self, values, void *ctx = NULL):
         cdef mpv_node node = empty_node()
         cdef mpv_format fmt = MPV_FORMAT_NONE
         cdef mpv_node_list* node_list = <mpv_node_list*>talloc_zero_size(ctx,sizeof(mpv_node_list))
@@ -539,15 +539,13 @@ cdef class Context(object):
         if node_list.num:
             node_list.values = <mpv_node*>talloc_array_size(node_list, sizeof(mpv_node),node_list.num)
             for i, value in enumerate(values):
-                fmt                 = cls._format_for(value)
-                node                = cls._prep_native_value(value, fmt, node_list)
+                node                = self._prep_native_value(value, node_list)
                 node_list.values[i] = node
         return node_list
 
-    @classmethod
-    cdef mpv_node_list* _prep_node_map(cls, _map, void *ctx = NULL):
+    cdef mpv_node_list* _prep_node_map(self,  _map, void *ctx = NULL):
         cdef char* ckey           = NULL
-        cdef mpv_node_list* _list = cls._prep_node_list(_map.values(), ctx)
+        cdef mpv_node_list* _list = self._prep_node_list(_map.values(), ctx)
         keys = _map.keys()
         if not len(keys):
             return _list
@@ -558,43 +556,29 @@ cdef class Context(object):
             _list.keys[i] = <char*>talloc_memdup(_list, ckey, len(key) + 1)
         return _list
 
-    @classmethod
-    cdef mpv_node _prep_native_value(cls, value, mpv_format fmt, void *ctx = NULL):
+    cdef mpv_node _prep_native_value_format(self, value, mpv_format fmt, void *ctx = NULL):
         cdef mpv_node node = empty_node()
         node.format = fmt
         cdef const char *_value = NULL
-        if fmt = MPV_FORMAT_STRING:
+        if fmt == MPV_FORMAT_STRING:
             value = _strenc(value)
             _value = value
             node.u.string = <char*>talloc_memdup(ctx, _value, len(value) + 1)
         elif fmt == MPV_FORMAT_FLAG:         node.u.flag = 1 if value else 0
         elif fmt == MPV_FORMAT_INT64:        node.u.int64 = value
         elif fmt == MPV_FORMAT_DOUBLE:       node.u.double_ = value
-        elif fmt == MPV_FORMAT_NODE_ARRAY:   node.u.list = cls._prep_node_list(value, ctx)
-        elif fmt == MPV_FORMAT_NODE_MAP:     node.u.list = cls._prep_node_map(value, ctx)
+        elif fmt == MPV_FORMAT_NODE_ARRAY:   node.u.list = self._prep_node_list(value, ctx)
+        elif fmt == MPV_FORMAT_NODE_MAP:     node.u.list = self._prep_node_map(value, ctx)
         else:                                node.format = MPV_FORMAT_NONE
         return node
 
-    @classmethod
-    cdef _free_native_value(cls, mpv_node node):
+    cdef mpv_node _prep_native_value(self, value, void *ctx = NULL):
+        return self._prep_native_value_format(value, self._format_for(value),ctx)
+
+    cdef _free_native_value(self, mpv_node node):
         if node.format in (MPV_FORMAT_NODE_ARRAY, MPV_FORMAT_NODE_MAP, MPV_FORMAT_STRING):
             talloc_free(node.u.list)
         node.u.list = NULL
-#            for i in range(node.u.list.num):
-#                cls._free_native_value(node.u.list.values[i])
-#            talloc_free(node.u.list.values)
-#            node.u.list.values = NULL
-#            if node.format == MPV_FORMAT_NODE_MAP:
-#                for i in range(node.u.list.num):
-#                    talloc_free(node.u.list.keys[i])
-#                talloc_free(node.u.list.keys)
-#                node.u.list.keys = NULL
-#            talloc_free(node.u.list)
-#            node.u.list = NULL
-#        elif node.format == MPV_FORMAT_STRING:
-#            talloc_free(node.u.string)
-##            free(node.u.string)
-#            node.u.string = NULL
 
     def command(self, *cmdlist, _async=False, data=None):
         """Send a command to mpv.
@@ -611,7 +595,7 @@ cdef class Context(object):
         Wraps: mpv_command_node and mpv_command_node_async
         """
         assert self._ctx
-        cdef mpv_node node = self._prep_native_value(cmdlist, self._format_for(cmdlist))
+        cdef mpv_node node = self._prep_native_value(cmdlist)
         cdef mpv_node noderesult = empty_node()
         cdef int err
         cdef uint64_t data_id
@@ -707,8 +691,7 @@ cdef class Context(object):
         """Wraps: mpv_set_property and mpv_set_property_async"""
         assert self._ctx
         prop = _strenc(prop)
-        cdef mpv_format fmt = self._format_for(value)
-        cdef mpv_node v = self._prep_native_value(value, fmt )
+        cdef mpv_node v = self._prep_native_value(value)
         cdef int err
         cdef uint64_t data_id
         cdef const char* prop_c
@@ -797,8 +780,7 @@ cdef class Context(object):
         """Wraps: mpv_set_option"""
         assert self._ctx
         prop = _strenc(prop.replace('_','-'))
-        cdef mpv_format fmt = self._format_for(value)
-        cdef mpv_node v = self._prep_native_value(value, fmt)
+        cdef mpv_node v = self._prep_native_value(value)
         cdef int err
         cdef const char* prop_c
         try:
@@ -947,15 +929,19 @@ cdef class Context(object):
         for prop in property_list | options:
             try:
                 try:
-                    self.get_property(prop)
+                    try:
+                        name = self.get_property("option-info/{}/name".format(prop))
+                    except:
+                        name = prop
+                    self.get_property(name)
                 except MPVError as e:
                     if e.code in ( Error.property_not_found,Error.option_not_found):
                         continue
-                self._props[prop]                  = prop
-                self._props[prop.replace('-','_')] = prop
+                self._props[prop]                  = name
+                self._props[prop.replace('-','_')] = name
 #                self._props[prop.replace('_','-')] = prop
-                if prop in self.options or prop not in self._opts:
-                    self.properties.add(prop)
+                if name in self.options or prop not in self._opts:
+                    self.properties.add(name)
             except:pass
         for op in args:
             try:    self.set_option(op)
