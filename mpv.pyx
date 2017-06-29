@@ -579,6 +579,20 @@ cdef class Context(object):
         if node.format in (MPV_FORMAT_NODE_ARRAY, MPV_FORMAT_NODE_MAP, MPV_FORMAT_STRING):
             talloc_free(node.u.list)
         node.u.list = NULL
+    def command_string(self, cmdlist):
+
+        """Send a command to mpv.
+
+        this is just a string. bluh.
+        """
+        assert self._ctx
+        cmdlist = _strenc(cmdlist)
+        cdef const char* cmdlist_c = cmdlist
+        cdef int err = 0
+        with nogil:
+            err = mpv_command_string(self._ctx, cmdlist_c)
+        if err < 0:
+            raise MPVError(err)
 
     def command(self, *cmdlist, _async=False, data=None):
         """Send a command to mpv.
