@@ -330,7 +330,7 @@ class MPVError(Exception):
     __cache__ = {}
     code = None
     message = None
-    def __init__(self, e):
+    def __init__(self, e, *args, **kwargs):
         cdef int e_i
         cdef const char* e_c
         if isinstance(e,Error):
@@ -342,7 +342,7 @@ class MPVError(Exception):
             e = self.code.error_str
         elif not isinstance(e,str):
             e = str(e)
-        super().__init__(e)
+        super().__init__(e, *args, **kwargs)
 
 cdef object _callbacks        = weakref.WeakValueDictionary()
 cdef object _reply_userdatas = weakref.WeakValueDictionary()
@@ -405,10 +405,15 @@ cdef class OptionInfoProxy(ContextProxy):
     def __len__(self):
         return len(dir(self))
 
-    def __getattr__(self, key):
+    def __getitem__(self, key):
         context = self.context
         if context:
-            return context.get_property('option-info/{}'.format(key.replace('_','-')))
+            okey = context.option_name(key)
+            if okey.startswith('options/'):
+                okey = okey.replace('options/','option-info')
+            else:
+                okey = 'option-info/' + okey
+            return context.get_property(okey)
         raise ValueError("attempt to access invalid option info proxy.")
 
 cdef class OptionsProxy(ContextProxy):
@@ -420,16 +425,28 @@ cdef class OptionsProxy(ContextProxy):
     def __len__(self):
         return len(dir(self))
 
-    def __getattr__(self, key):
+    def __getitem__(self, key):
         context = self.context
         if context:
-            return context.get_property('options/{}'.format(context.option_name(key)))
+            try:
+                return context.get_property(context.option_name(key))
+            except MPVError as e:
+                if e.code == Error.property_not_found:
+                    raise IndexError('invalid index {}'.format(key))
+                else:
+                    return
         raise ValueError("attempt to access invalid option info proxy.")
 
-    def __setattr__(self, key, val):
+    def __setitem__(self, key, val):
         context = self.context
         if context:
-            context.set_option(context.option_name(key), val)
+            try:
+                context.set_property(context.option_name(key), val)
+            except MPVError as e:
+                if e.code == Error.property_not_found:
+                    raise IndexError('invalid index {}'.format(key))
+                elif e.code == Error.property_format or e.code == Error.option_format:
+                    raise ValueError('invalid format for option {}'.format(key), val)
 
 cdef mpv_node empty_node():
     cdef mpv_node ret
@@ -454,7 +471,7 @@ cdef class Context(object):
     cdef readonly set options
     cdef dict _props
     cdef dict _opts
-
+    cdef list _dir
     @property
     def name(self):
         """Unique name for every context created.
@@ -480,7 +497,7 @@ cdef class Context(object):
         return time
 
     def __dir__(self):
-        return [*set(map(lambda x:x.replace('-','_'),self.properties|self.options)),*super().__dir__()]
+        return [*self._dir, *super().__dir__()]
 
     def request_event(self, event, enable):
         """Enable or disable a given event.
@@ -738,7 +755,8 @@ cdef class Context(object):
         return Error(err)
 
     def __getattr__(self,oname):
-        name = oname.replace('_','-')
+#        name = oname.replace('_','-')
+        name = oname
         if name in self._props:
             return self.get_property(self._props[name])
         elif name in self._opts:
@@ -767,7 +785,7 @@ cdef class Context(object):
         raise AttributeError
 
     def __setattr__(self,name,value):
-        name = name.replace('_','-')
+#        name = name.replace('_','-')
         if name in self._props:
             self.set_property(self._props[name],value)
         elif name in self._opts:
@@ -923,6 +941,7 @@ cdef class Context(object):
         self.options    = set()
         self._opts      = dict()
         self._props     = dict()
+        self._dir       = list()
 #        _callbacks[ctxid] = self.callbackthread = CallbackThread(str(ctxid))
         _reply_userdatas[ctxid] = self.reply_userdata = UserDict()
 #        self.callbackthread.start()
@@ -932,36 +951,72 @@ cdef class Context(object):
         for op in options:
             try:
                 name = self.get_property("option-info/{}/name".format(op))
-                self._opts[op] = name
-                self._opts[op.replace('-','_')] = name
-                self._opts[op.replace('_','-')] = name
+                aname = 'options/{}'.format(name)
+                try:
+                    self.get_property(aname)
+                except MPVError as e:
+                    if ( e.code == Error.property_not_found or (
+                         e.code != Error.property_unavailable and
+                         e.code != Error.unsupported)):
+                        continue
+                self._opts[op] = aname
+                self._opts[op.replace('-','_')] = aname
+                self._opts[op.replace('_','-')] = aname
                 if op == name:
-                    self.options.add(op)
+                    self.options.add(name)
             except MPVError:
                 pass
-#            self.options.add(op.replace('_','-'))
-        for prop in property_list | options:
+        for prop in property_list:
             try:
+                name = prop
+                oname = None
                 try:
-                    try:
-                        name = self.get_property("option-info/{}/name".format(prop))
-                    except:
-                        name = prop
+                    oname = self.get_property("option-info/{}/name".format(prop))
+                except:
+                    pass
+                try:
                     self.get_property(name)
                 except MPVError as e:
-                    if e.code in ( Error.property_not_found,Error.option_not_found):
+                    if e.code == Error.property_not_found:
                         continue
                 self._props[prop]                  = name
                 self._props[prop.replace('-','_')] = name
-#                self._props[prop.replace('_','-')] = prop
-                if name in self.options or prop not in self._opts:
+                self._props[prop.replace('_','-')] = name
+                if oname is None or name == oname or prop not in self.options:
                     self.properties.add(name)
-            except:pass
+            except:
+                pass
+        for prop in options:
+            try:
+                name = prop
+                oname = None
+                try:
+                    oname = self.get_property("option-info/{}/name".format(prop))
+                    if oname != name:
+                        continue
+                except:
+                    pass
+                try:
+                    self.get_property(name)
+                except MPVError as e:
+                    if e.code == Error.property_not_found:
+                        continue
+                self._props[prop]                  = name
+                self._props[prop.replace('-','_')] = name
+                self._props[prop.replace('_','-')] = name
+                self.properties.add(name)
+            except:
+                pass
+
+        for name in set(self._props.keys())|set(self._opts.keys()):
+            if name.isidentifier():
+                self._dir.append(name)
+
         for op in args:
             try:    self.set_option(op)
             except: pass
         for op,val in kwargs.items():
-            try:    self.set_option(op,val)
+            try:    self.set_property(op,val)
             except: pass
 
     def property_name(self, prop):
@@ -979,7 +1034,7 @@ cdef class Context(object):
     def attr_name(self, name):
         res = self._props.get(name,None) or self._opts.get(name,None)
         if not res:
-            raise AttributeError('no property or option {}'.format(name))
+            raise MPVError(Error.property_not_found,'no property or option {}'.format(name))
         return res
     def copy(self,name='dup', *args, **kwargs):
         return Context(other=self,name=name, *args, **kwargs)
