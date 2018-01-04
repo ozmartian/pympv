@@ -62,8 +62,8 @@ cdef extern from "talloc.h" nogil:
     char *talloc_vasprintf(const void *t, const char *fmt, va_list ap)
     char *talloc_vasprintf_append(char *s, const char *fmt, va_list ap)
     char *talloc_vasprintf_append_buffer(char *s, const char *fmt, va_list ap)
-    char *talloc_asprintf(const void *t, const char *fmt, ...) 
-    char *talloc_asprintf_append(char *s, const char *fmt, ...) 
+    char *talloc_asprintf(const void *t, const char *fmt, ...)
+    char *talloc_asprintf_append(char *s, const char *fmt, ...)
     char *talloc_asprintf_append_buffer(char *s, const char *fmt, ...)
     void talloc_set_log_fn(void (*log_fn)(const char *message));
     void talloc_set_log_stderr();

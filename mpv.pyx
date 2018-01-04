@@ -29,6 +29,7 @@ try:
     from queue import Queue, Empty, Full
 except ImportError:
     from Queue import Queue, Empty, Full
+
 from collections import UserDict
 from libc.stdlib cimport malloc, free
 from libc.string cimport strcpy
@@ -107,7 +108,8 @@ class Error(IntEnum):
 
     def __init__(self, int val):
         cdef const char* err_c
-        with nogil:err_c = mpv_error_string(val)
+        with nogil:
+            err_c = mpv_error_string(val)
         self.error_str = _strdec(err_c)
 
 class EventType(IntEnum):
@@ -143,7 +145,8 @@ class EventType(IntEnum):
     chapter_change = MPV_EVENT_CHAPTER_CHANGE
     def __init__(self, mpv_event_id val):
         cdef const char* err_c
-        with nogil:err_c = mpv_event_name(val)
+        with nogil:
+            err_c = mpv_event_name(val)
         self.event_name = _strdec(err_c)
 
 class LogLevels(IntEnum):
@@ -166,7 +169,7 @@ class EOFReasons(IntEnum):
     quit = MPV_END_FILE_REASON_QUIT
     error = MPV_END_FILE_REASON_ERROR
 
-@cython.freelist(64)
+@cython.freelist(16)
 cdef class EndOfFileReached:
     """Data field for MPV_EVENT_END_FILE events
 
@@ -184,7 +187,7 @@ cdef class EndOfFileReached:
         self.error  = eof.error
         return self
 
-@cython.freelist(256)
+@cython.freelist(16)
 cdef class InputDispatch:
     """Data field for MPV_EVENT_SCRIPT_INPUT_DISPATCH events.
 
@@ -202,7 +205,7 @@ cdef class InputDispatch:
         self.type = _strdec(input.type)
         return self
 
-@cython.freelist(256)
+@cython.freelist(16)
 cdef class LogMessage:
     """Data field for MPV_EVENT_LOG_MESSAGE events.
 
@@ -252,7 +255,7 @@ cdef _convert_value(void* data, mpv_format fmt):
     elif fmt == MPV_FORMAT_DOUBLE:   return float((<double*>data)[0])
     else:                            return None
 
-@cython.freelist(256)
+@cython.freelist(16)
 cdef class Property:
     """Data field for MPV_EVENT_PROPERTY_CHANGE and MPV_EVENT_GET_PROPERTY_REPLY.
 
@@ -270,7 +273,7 @@ cdef class Property:
     cdef Property create(mpv_event_property* prop):
         return Property()._init(prop)
 
-@cython.freelist(256)
+@cython.freelist(16)
 cdef class Event:
     """Wraps: mpv_event"""
     cdef object __weakref__
@@ -344,7 +347,7 @@ class MPVError(Exception):
             e = str(e)
         super().__init__(e, *args, **kwargs)
 
-cdef object _callbacks        = weakref.WeakValueDictionary()
+cdef object _callbacks       = weakref.WeakValueDictionary()
 cdef object _reply_userdatas = weakref.WeakValueDictionary()
 
 #@cython.freelist(256)
@@ -382,71 +385,6 @@ cdef class _ReplyUserData:
             if data_id in ref:
                 del ref[data_id]
 
-
-cdef class ContextProxy:
-    cdef object __weakref__
-    cdef object __context__
-    def __init__(self, Context ctx):
-        self.__context__ = weakref.ref(ctx)
-
-    @property
-    def context(self):
-        return self.__context__()
-
-    def __nonzero__(self):
-        return self.context is not None
-
-cdef class OptionInfoProxy(ContextProxy):
-    def __dir__(self):
-        context = self.context
-        if context:
-            return context.options
-
-    def __len__(self):
-        return len(dir(self))
-
-    def __getitem__(self, key):
-        context = self.context
-        if context:
-            okey = context.option_name(key)
-            if okey.startswith('options/'):
-                okey = okey.replace('options/','option-info')
-            else:
-                okey = 'option-info/' + okey
-            return context.get_property(okey)
-        raise ValueError("attempt to access invalid option info proxy.")
-
-cdef class OptionsProxy(ContextProxy):
-    def __dir__(self):
-        context = self.context
-        if context:
-            return context.options
-
-    def __len__(self):
-        return len(dir(self))
-
-    def __getitem__(self, key):
-        context = self.context
-        if context:
-            try:
-                return context.get_property(context.option_name(key))
-            except MPVError as e:
-                if e.code == Error.property_not_found:
-                    raise IndexError('invalid index {}'.format(key))
-                else:
-                    return
-        raise ValueError("attempt to access invalid option info proxy.")
-
-    def __setitem__(self, key, val):
-        context = self.context
-        if context:
-            try:
-                context.set_property(context.option_name(key), val)
-            except MPVError as e:
-                if e.code == Error.property_not_found:
-                    raise IndexError('invalid index {}'.format(key))
-                elif e.code == Error.property_format or e.code == Error.option_format:
-                    raise ValueError('invalid format for option {}'.format(key), val)
 
 cdef mpv_node empty_node():
     cdef mpv_node ret
@@ -857,7 +795,7 @@ cdef class Context(object):
             del _callbacks[ctxid]
         _callbacks[ctxid] = self.callback
         with nogil:
-            mpv_set_wakeup_callback(self._ctx, _c_callback, <void*>ctxid)
+            mpv_set_wakeup_callback(self._ctx, &_c_callback, <void*>ctxid)
 
     def set_wakeup_callback_thread(self, callback):
         """Wraps: mpv_set_wakeup_callback"""
@@ -876,7 +814,7 @@ cdef class Context(object):
                 _callbacks[ctxid] = self.callbackthread
                 self.callbackthread.set(self.callback)
             with nogil:
-                mpv_set_wakeup_callback(self._ctx, _c_callback, <void*>ctxid)
+                mpv_set_wakeup_callback(self._ctx, &_c_callback, <void*>ctxid)
 
         else:
             if self.callbackthread and self.callbackthread.is_alive():
@@ -886,7 +824,7 @@ cdef class Context(object):
             if ctxid in _callbacks:
                 del _callbacks[ctxid]
             with nogil:
-                mpv_set_wakeup_callback(self._ctx, _c_callback, <void*>ctxid)
+                mpv_set_wakeup_callback(self._ctx, &_c_callback, <void*>ctxid)
 
     def get_wakeup_pipe(self):
         """Wraps: mpv_get_wakeup_pipe"""
@@ -942,9 +880,8 @@ cdef class Context(object):
         self._opts      = dict()
         self._props     = dict()
         self._dir       = list()
-#        _callbacks[ctxid] = self.callbackthread = CallbackThread(str(ctxid))
+
         _reply_userdatas[ctxid] = self.reply_userdata = UserDict()
-#        self.callbackthread.start()
         property_list = set(self.get_property("property-list"))
         options       = set(self.get_property('options'))
 
@@ -1126,14 +1063,6 @@ cdef class Context(object):
     def opengl_cb_context(self):
         return OpenGLCBContext.create(self)
 
-    @property
-    def opt_info(self):
-        return OptionInfoProxy(self)
-
-    @property
-    def opts(self):
-        return OptionsProxy(self)
-
 cdef class OpenGLCBContext(object):
     cdef object __weakref__
     cdef mpv_opengl_cb_context *_glctx
@@ -1168,7 +1097,8 @@ cdef class OpenGLCBContext(object):
         cdef mpv_opengl_cb_context *_glctx = self._glctx
         self._glctx = NULL
         if _glctx:
-            mpv_opengl_cb_uninit_gl(_glctx)
+            with nogil:
+                mpv_opengl_cb_uninit_gl(_glctx)
         if self.ctx and self.ctx.cb_context and self.ctx.cb_context() is self:
             self.ctx.cb_context = None
 
@@ -1182,11 +1112,17 @@ cdef class OpenGLCBContext(object):
         if exts is not None:
             extsp = <const char*>exts
         cdef uint64_t name = <uint64_t>id(self)
+        prev = _callbacks.get(name,None)
         _callbacks[name] = get_proc_address_cb
-        cdef int ret = mpv_opengl_cb_init_gl(self._glctx, extsp, &_c_getprocaddress, <void*>name)
+        cdef int ret
+        with nogil:
+            ret = mpv_opengl_cb_init_gl(self._glctx, extsp, &_c_getprocaddress, <void*>name)
         del _callbacks[name]
+        if prev is not None:
+            _callbacks[name] = prev
         if ret < 0:
             raise MPVError(ret)
+
     def set_update_callback(self, callback):
         """Wraps: mpv_set_wakeup_callback"""
         assert self._glctx
@@ -1198,16 +1134,14 @@ cdef class OpenGLCBContext(object):
             _callbacks[ctxid] = self.update_cb = callback;
         elif ctxid in _callbacks:
             del _callbacks[ctxid]
-#        _callbacks[ctxid] = self.update_cb
         with nogil:
-            mpv_opengl_cb_set_update_callback(self._glctx, _c_callback, <void*>ctxid)
+            mpv_opengl_cb_set_update_callback(self._glctx, &_c_callback, <void*>ctxid)
 
     def set_update_callback_thread(self, callback):
         """Wraps: mpv_set_wakeup_callback"""
         assert self._glctx
         cdef uint64_t ctxid = <uint64_t>id(self)
 
-#        self.callback = callback
         if not isinstance(self.update_cb, CallbackThread):
             self.update_cb = CallbackThread(str(ctxid))
             self.update_cb.set(callback)
@@ -1221,7 +1155,7 @@ cdef class OpenGLCBContext(object):
         else:
             self.update_thread.set(callback)
         with nogil:
-            mpv_opengl_cb_set_update_callback(self._glctx, _c_callback, <void*>ctxid)
+            mpv_opengl_cb_set_update_callback(self._glctx, &_c_callback, <void*>ctxid)
 
 
     def draw(self, int fbo, int w, int h):
@@ -1247,11 +1181,7 @@ cdef void mpv_callback(callback):
             sys.stderr.write("pympv error during callback: {}\n".format(e))
             sys.stderr.flush()
 
-#cdef mpv_callback(cb):
-#    if cb: _mpv_callback(cb)
-
 class CallbackThread(Thread):
-
     def __init__(self, name=None):
         super().__init__(name=(
             name + "-mpv-cbthread" if name else "mpv-cbthread")
