@@ -903,16 +903,19 @@ cdef class Context(object):
 
         if callback is not None:
             _callbacks[ctxid] = callback;
-#            _callbacks[ctxid] = self.callback = callback;
-        elif ctxid in _callbacks:
-            del _callbacks[ctxid]
+            with nogil:
+                mpv_set_wakeup_callback(self._ctx, &_c_callback, <void*>ctxid)
 
-        with nogil:
-            mpv_set_wakeup_callback(self._ctx, &_c_callback, <void*>ctxid)
+#            _callbacks[ctxid] = self.callback = callback;
+        else:
+            if ctxid in _callbacks:
+                del _callbacks[ctxid]
+            with nogil:
+                mpv_set_wakeup_callback(self._ctx, &_c_callback, NULL)#<void*>ctxid)
 
         self._shutdown_callbackthread()
 
-    def set_wakeup_callback_thread(self, callback):
+    def set_wakeup_callback_thread(self, callback,maxsize=0):
         """Wraps: mpv_set_wakeup_callback"""
         if self._ctx is NULL:
             raise MPVError(Error.uninitialized)
@@ -922,6 +925,11 @@ cdef class Context(object):
 #        self.callback = callback
         self.callback = callback
         if callback is not None:
+            if self.callbackthread:
+                cbq = self.callbackthread.cbq
+                if cbq and cbq.maxsize != maxsize:
+                    self._shutdown_callbackthread()
+
             callbackthread = self.callbackthread
             if not self.callbackthread or not self.callbackthread.set(callback):
                 callbackthread = self.callbackthread = CallbackThread(name=str(ctxid),cb=callback)
@@ -935,10 +943,11 @@ cdef class Context(object):
             if ctxid in _callbacks:
                 del _callbacks[ctxid]
 
+            with nogil:
+                mpv_set_wakeup_callback(self._ctx, &_c_callback, NULL)
+
             self._shutdown_callbackthread()
 
-        with nogil:
-            mpv_set_wakeup_callback(self._ctx, &_c_callback, <void*>ctxid)
 
     cdef _shutdown_callback(self):
         cdef uint64_t ctxid = <uint64_t>id(self)
@@ -946,6 +955,10 @@ cdef class Context(object):
             del _callbacks[ctxid]
 
         self.callback = None
+#        if self._ctx:
+#            with nogil:
+#                mpv_set_wakeup_callback(self._ctx, &_c_callback, <void*>ctxid)
+
         callbackthread,self.callbackthread = self.callbackthread,None
         if callbackthread:
             callbackthread.shutdown()
@@ -1127,13 +1140,17 @@ cdef class Context(object):
                 return userdatas._data
             else:
                 return userdatas.data
-
     def observe_property(self, prop, data=None):
         """Wraps: mpv_observe_property"""
         if self._ctx is NULL:
             raise MPVError(Error.uninitialized)
 
         cdef uint64_t id_data = <uint64_t>hash(prop)
+        cdef mpv_format fmt = MPV_FORMAT_NODE
+        if isinstance(prop,tuple) and prop[1] == None:
+            fmt = MPV_FORMAT_NONE
+            prop = prop[0]
+
 
         userdatas = self.prop_userdata.get(id_data, None)
 
@@ -1149,7 +1166,7 @@ cdef class Context(object):
                     self._ctx,
                     id_data,
                     propc,
-                    MPV_FORMAT_NODE,
+                    fmt,
                 )
             if err >= 0:
                 self.prop_userdata[id_data] = userdatas
@@ -1345,6 +1362,10 @@ cdef class OpenGLCBContext(object):
         cdef uint64_t ctxid = <uint64_t>id(self)
         if ctxid in _callbacks:
             del _callbacks[ctxid]
+#        if self._glctx:
+#            with nogil:
+#                mpv_render_context_set_update_callback(self._glctx, &_c_callback, <void*>ctxid)
+
         self.callback= None
         self._shutdown_callbackthread()
 
@@ -1415,13 +1436,18 @@ cdef class OpenGLCBContext(object):
             del _callbacks[ctxid]
 
         if self._glctx:
-            with nogil:
-                mpv_render_context_set_update_callback(self._glctx, &_c_callback, <void*>ctxid)
+            if callback is None:
+                with nogil:
+                    mpv_render_context_set_update_callback(self._glctx, &_c_callback, NULL)#<void*>ctxid)
+            else:
+                with nogil:
+                    mpv_render_context_set_update_callback(self._glctx, &_c_callback, <void*>ctxid)
+
 #            mpv_opengl_cb_set_update_callback(self._glctx, &_c_callback, <void*>ctxid)
 
         self._shutdown_callbackthread()
 
-    def set_update_callback_thread(self, callback):
+    def set_update_callback_thread(self, callback, maxsize=0):
         """Wraps: mpv_set_wakeup_callback"""
         if not self._glctx:
             self._shutdown_callback()
@@ -1431,17 +1457,26 @@ cdef class OpenGLCBContext(object):
         self.callback = callback
 
         if callback is not None:
+            if self.callbackthread:
+                cbq = self.callbackthread.cbq
+                if cbq and cbq.maxsize != maxsize:
+                    self._shutdown_callbackthread()
+
             callbackthread = self.callbackthread
+
             if not self.callbackthread or not self.callbackthread.set(callback):
-                callbackthread = self.callbackthread = CallbackThread(name=str(ctxid),cb=callback)
+                callbackthread = self.callbackthread = CallbackThread(name=str(ctxid),cb=callback,maxsize=maxsize)
 
             _callbacks[ctxid] = callbackthread
+            with nogil:
+                mpv_render_context_set_update_callback(self._glctx, &_c_callback, <void*>ctxid)
+
         else:
-            del _callbacks[ctxid]
-        with nogil:
-            mpv_render_context_set_update_callback(self._glctx, &_c_callback, <void*>ctxid)
-        if callback is None:
+            if ctxid in _callbacks:
+                del _callbacks[ctxid]
             self._shutdown_callback_thread()
+            with nogil:
+                mpv_render_context_set_update_callback(self._glctx, &_c_callback, NULL)
 #                mpv_opengl_cb_set_update_callback(self._glctx, &_c_callback, <void*>ctxid)
 
     def draw(self, int fbo, int w, int h):
@@ -1463,7 +1498,6 @@ cdef class OpenGLCBContext(object):
 
         with nogil:
             err = mpv_render_context_render(self._glctx, _params)
-#            err = mpv_opengl_cb_draw(self._glctx, fbo, w, h)
         if err < 0:
             raise MPVError(err)
 
@@ -1471,9 +1505,6 @@ cdef class OpenGLCBContext(object):
         if self._glctx:
             with nogil:
                 mpv_render_context_report_swap(self._glctx)
-#            err = mpv_opengl_cb_report_flip(self._glctx, time)
-#        if err < 0:
-#            raise MPVError(err)
 
 cdef void mpv_callback(callback):
     if callback is not None:
@@ -1485,13 +1516,13 @@ cdef void mpv_callback(callback):
             sys.stderr.flush()
 
 class CallbackThread(Thread):
-    def __init__(self, name=None, cb = None):
+    def __init__(self, name=None, cb = None, maxsize=0):
         super().__init__(name=(
             name + "-mpv-cbthread" if name else "mpv-cbthread")
          ,  daemon = True)
         self.daemon = True
         self.cb     = cb
-        self.cbq    = Queue(maxsize=8)
+        self.cbq    = Queue(maxsize)
         self.mutex  = RLock()
         self.start()
 
@@ -1534,14 +1565,17 @@ class CallbackThread(Thread):
 
 cdef void *_c_getprocaddress(void *d, const char *fname) with gil:
     cdef uint64_t name = <uint64_t>d
-    cb = _callbacks.get(name,None)
     cdef uint64_t res = 0
+    cb = _callbacks.get(name,None)
     if cb:
         res = <uint64_t>cb(_strenc(fname))
     return <void*>res
 
-cdef void _c_callback(void* d) with gil:
+cdef void _c_callback(void* d) nogil:
     cdef uint64_t name = <uint64_t>d
-    cb = _callbacks.get(name,None)
-    if cb is not None:
-        mpv_callback(cb)
+    if name == 0:
+        return
+    with gil:
+        cb = _callbacks.get(name,None)
+        if cb is not None:
+            mpv_callback(cb)
