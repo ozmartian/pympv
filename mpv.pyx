@@ -37,8 +37,10 @@ from libc.stdlib cimport malloc, free
 from libc.string cimport strcpy
 
 from client cimport *
-from opengl_cb cimport *
+#from opengl_cb cimport *
 from stream_cb cimport *
+from render cimport *
+from render_gl cimport *
 from talloc cimport *
 
 cimport cython
@@ -916,6 +918,8 @@ cdef class Context(object):
         self._shutdown_callbackthread()
 
     def set_wakeup_callback_thread(self, callback,maxsize=0):
+        if maxsize <= 0 or not maxsize:
+            maxsize = -1
         """Wraps: mpv_set_wakeup_callback"""
         if self._ctx is NULL:
             raise MPVError(Error.uninitialized)
@@ -1151,6 +1155,14 @@ cdef class Context(object):
             fmt = MPV_FORMAT_NONE
             prop = prop[0]
 
+        try:
+            prop_name = self.property_name(prop)
+            if prop_name is not None:
+                prop = prop_name
+                id_data = <uint64_t>hash(prop)
+        except:
+            raise MPVError(Error.property_not_found)
+#            return
 
         userdatas = self.prop_userdata.get(id_data, None)
 
@@ -1454,6 +1466,9 @@ cdef class OpenGLCBContext(object):
             return
         cdef uint64_t ctxid = <uint64_t>id(self)
 
+        if maxsize <= 0 or not maxsize:
+            maxsize = -1
+
         self.callback = callback
 
         if callback is not None:
@@ -1517,12 +1532,14 @@ cdef void mpv_callback(callback):
 
 class CallbackThread(Thread):
     def __init__(self, name=None, cb = None, maxsize=0):
+        if maxsize <= 0 or not maxsize:
+            maxsize = -1
         super().__init__(name=(
             name + "-mpv-cbthread" if name else "mpv-cbthread")
          ,  daemon = True)
         self.daemon = True
         self.cb     = cb
-        self.cbq    = Queue(maxsize)
+        self.cbq    = Queue(maxsize=maxsize)
         self.mutex  = RLock()
         self.start()
 
