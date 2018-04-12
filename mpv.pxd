@@ -4,7 +4,6 @@ from libc.string cimport strcpy
 from client cimport *
 from render cimport *
 from render_gl cimport *
-#from opengl_cb cimport *
 from stream_cb cimport *
 from talloc cimport *
 
@@ -35,6 +34,16 @@ cdef class InputDispatch:
 
     cdef _init(self, mpv_event_script_input_dispatch* input)
 
+cdef class Hook:
+    cdef public str name
+    cdef public int id
+    cdef readonly object _ctx
+    @staticmethod
+    cdef Hook create(mpv_event_hook *hook, _ctx)
+
+    cdef _init(self, mpv_event_hook *hook, _ctx)
+
+    cdef _continue(self)
 cdef class LogMessage:
     """Data field for MPV_EVENT_LOG_MESSAGE events.
 
@@ -70,7 +79,7 @@ cdef class Event:
     cdef public object data
     cdef public object reply_userdata
 
-    cdef _data(self, mpv_event* event)
+    cdef _data(self, mpv_event* event, ctx)
     @staticmethod
     cdef Event create(mpv_event* event, ctx)
     cdef _init(self, mpv_event* event, ctx)
@@ -117,7 +126,7 @@ cdef class Context(object):
     cdef _shutdown_callbackthread(self)
     cdef _shutdown_callback(self)
 
-cdef class OpenGLCBContext(object):
+cdef class RenderContext(object):
     cdef object __weakref__
     cdef mpv_render_context *_glctx
 #    cdef mpv_opengl_cb_context *_glctx
@@ -127,7 +136,7 @@ cdef class OpenGLCBContext(object):
     cdef readonly object callbackthread
 
     @staticmethod
-    cdef OpenGLCBContext create(Context ctx)
+    cdef RenderContext create(Context ctx)
 
     cdef _shutdown_callbackthread(self)
     cdef _shutdown_callback(self)

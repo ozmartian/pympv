@@ -1220,7 +1220,7 @@ cdef extern from "mpv/client.h" nogil:
 #/
         MPV_EVENT_QUEUE_OVERFLOW
 #    // Internal note: adjust INTERNAL_EVENT_BASE when adding new events.
-
+        MPV_EVENT_HOOK
 #*
 # Return a string describing the event. For unknown events, NULL is returned.
 #
@@ -1263,6 +1263,9 @@ cdef extern from "mpv/client.h" nogil:
 #/
         void *data;
 
+    ctypedef struct mpv_event_hook:
+        const char *name
+        uint64_t    id
 #*
 # Numeric log levels. The lower the number, the more important the message is.
 # MPV_LOG_LEVEL_NONE is never used when receiving messages. The string in
@@ -1585,6 +1588,13 @@ cdef extern from "mpv/client.h" nogil:
 # suspend counter of the given handle.
 #/
     void mpv_wait_async_requests(mpv_handle *ctx);
+
+    int mpv_hook_add(mpv_handle *ctx
+        , uint64_t reply_userdata
+        , const char *name
+        , int priority)
+
+    int mpv_hook_continue(mpv_handle *ctx, uint64_t id)
 
     ctypedef enum mpv_sub_api:
 #*
