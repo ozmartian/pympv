@@ -21,7 +21,7 @@ from distutils.extension import Extension
 from distutils.command.clean import clean
 from Cython.Distutils import build_ext
 from Cython.Build import cythonize
-
+import re
 def tryremove(filename):
     pth = pathlib.Path(filename).absolute()
     if not pth.exists() or not pth.is_file():
@@ -39,6 +39,26 @@ class Clean(clean):
         for f in self.side_effects:
             tryremove(f)
         clean.run(self)
+from Cython.Compiler.AutoDocTransforms import EmbedSignature
+
+old_embed_signature = EmbedSignature._embed_signature
+def new_embed_signature(self, sig, doc):
+
+    # Strip any `self` parameters from the front.
+    sig = re.sub(r'\(self(,\s+)?', '(', sig)
+
+    # If they both start with the same signature; skip it.
+    if sig and doc:
+        new_name = sig.split('(')[0].strip()
+        old_name = doc.split('(')[0].strip()
+        if new_name == old_name:
+            return doc
+        if new_name.endswith('.' + old_name):
+            return doc
+
+    return old_embed_signature(self, sig, doc)
+
+EmbedSignature._embed_signature = new_embed_signature
 setup(
     name="mpv",
     version='0.0.1',
@@ -50,13 +70,16 @@ setup(
     },
     ext_modules = cythonize([Extension("mpv", ["mpv.pyx"], libraries=['mpv'],language="c++")],compiler_directives={
         "embedsignature":True,
-        "always_allow_keywords":True,
+        "always_allow_keywords":False,
         "cdivision_warnings":False,
         "cdivision":True,
+        "linetrace":True,
         "infer_types":True,
-        "boundscheck":False,
+        "boundscheck":True,
         "overflowcheck":False,
-        "wraparound":False},
+        "wraparound":True,
+        "language_level":3
+        },
         ),
-        zip_safe = False
+#        zip_safe = False
 )
