@@ -726,7 +726,7 @@ cdef class Context(object):
                         &result,
                     )
         if err < 0:
-            raise MPVError(err)
+            raise MPVError(err,'for property {}'.format(prop))
         try:
             v = _convert_node_value(result)
         finally:
@@ -847,7 +847,7 @@ cdef class Context(object):
         finally:
             self._free_native_value(v)
         if err < 0:
-                raise MPVError(err)
+                raise MPVError(err, 'prop={}, value={}'.format(prop,value))
         return Error(err)
 
     def wait_event(self, timeout=None):
@@ -953,6 +953,7 @@ cdef class Context(object):
         return pipe
 
     def __cinit__(self, *args, **kwargs):
+#    def __init__(self, *args, **kwargs):
         cdef uint64_t ctxid = <uint64_t>id(self)
         cdef int err = 0
         self._ctx = NULL
@@ -988,10 +989,9 @@ cdef class Context(object):
                 with nogil:
                     mpv_terminate_destroy(self._ctx)
                 self._ctx = NULL
-                raise MPVError(err)
+                raise MPVError(err, 'error initializing')
         cdef const char *loglevel_c = "terminal-default";
         mpv_request_log_messages(self._ctx, loglevel_c)
-#    def __init__(self, *args, **kwargs):
 #        cdef uint64_t ctxid = <uint64_t>id(self)
 #        cdef int err = 0
         self.properties = set()
@@ -1057,8 +1057,8 @@ cdef class Context(object):
                     try:
                         self.get_property(name)
                     except MPVError as e:
-                        if e.code == Error.property_not_found:
-                            continue
+#                        if e.code == Error.property_not_found:
+                        continue
                     self._props[prop]                  = name
                     self._props[prop.replace('-','_')] = name
                     self._props[prop.replace('_','-')] = name
@@ -1075,10 +1075,10 @@ cdef class Context(object):
             _options.update(self.options)
             _dir.extend(self._dir)
         else:
-            self._opts      = _opts
-            self._props     = _props
-            self.properties = _properties
-            self.options    = _options
+            self._opts      = _opts.copy()
+            self._props     = _props.copy()
+            self.properties = _properties.copy()
+            self.options    = _options.copy()
             self._dir       = _dir.copy()
 
 #        for name in set(self._props.keys())|set(self._opts.keys()):

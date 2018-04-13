@@ -18,16 +18,16 @@ cdef class EndOfFileReached:
     Wraps: mpv_event_end_file
     """
 #    cdef object __weakref__
-    cdef public object reason
-    cdef public object error
+    cdef readonly object reason
+    cdef readonly object error
     @staticmethod
     cdef EndOfFileReached create(mpv_event_end_file* eof)
     cdef _init(self, mpv_event_end_file* eof)
 
 cdef class InputDispatch:
 #    cdef object __weakref__
-    cdef public object arg0
-    cdef public object type
+    cdef readonly object arg0
+    cdef readonly object type
 
     @staticmethod
     cdef InputDispatch create(mpv_event_script_input_dispatch* evt)
@@ -35,8 +35,8 @@ cdef class InputDispatch:
     cdef _init(self, mpv_event_script_input_dispatch* input)
 
 cdef class Hook:
-    cdef public str name
-    cdef public int id
+    cdef readonly str name
+    cdef readonly int id
     cdef readonly object _ctx
     @staticmethod
     cdef Hook create(mpv_event_hook *hook, _ctx)
@@ -44,16 +44,17 @@ cdef class Hook:
     cdef _init(self, mpv_event_hook *hook, _ctx)
 
     cdef _continue(self)
+
 cdef class LogMessage:
     """Data field for MPV_EVENT_LOG_MESSAGE events.
 
     Wraps: mpv_event_log_message
     """
 #    cdef object __weakref__
-    cdef public str prefix
-    cdef public str level
-    cdef public str text
-    cdef public object log_level
+    cdef readonly str prefix
+    cdef readonly str level
+    cdef readonly str text
+    cdef readonly object log_level
     cdef _init(self, mpv_event_log_message* msg)
     @staticmethod
     cdef LogMessage create(mpv_event_log_message *msg)
@@ -65,8 +66,8 @@ cdef class Property:
     Wraps: mpv_event_property
     """
 #    cdef object __weakref__
-    cdef public str name
-    cdef public object data
+    cdef readonly str name
+    cdef readonly object data
     cdef _init(self, mpv_event_property* prop)
     @staticmethod
     cdef Property create(mpv_event_property* prop)
@@ -74,10 +75,10 @@ cdef class Property:
 cdef class Event:
     """Wraps: mpv_event"""
 #    cdef object __weakref__
-    cdef public object id
-    cdef public object error
-    cdef public object data
-    cdef public object reply_userdata
+    cdef readonly object id
+    cdef readonly object error
+    cdef readonly object data
+    cdef readonly object reply_userdata
 
     cdef _data(self, mpv_event* event, ctx)
     @staticmethod
@@ -85,17 +86,17 @@ cdef class Event:
     cdef _init(self, mpv_event* event, ctx)
 
 cdef class _ReplyUserData:
-    cdef object __weakref__
-    cdef public int    refcnt
-    cdef public object wref
-    cdef public object _data
+    cdef            object __weakref__
+    cdef public     int    refcnt
+    cdef public     object wref
+    cdef readonly   object _data
 
 cdef class _PropertyUserData:
-    cdef object __weakref__
-    cdef public object wref
-    cdef readonly object prop_name
-    cdef public uint64_t prop_id
-    cdef public list   _data
+    cdef            object __weakref__
+    cdef public     object wref
+    cdef readonly   object prop_name
+    cdef public     uint64_t prop_id
+    cdef readonly   list   _data
 
 cdef class Context(object):
     """Base class wrapping a context to interact with mpv.
@@ -109,7 +110,7 @@ cdef class Context(object):
     cdef readonly object _prop_userdata
     cdef mpv_handle *_ctx
     cdef readonly object cb_context
-    cdef public object callback
+    cdef readonly object callback
     cdef readonly object callbackthread
     cdef readonly set properties
     cdef readonly set options
@@ -129,8 +130,6 @@ cdef class Context(object):
 cdef class RenderContext(object):
     cdef object __weakref__
     cdef mpv_render_context *_glctx
-#    cdef mpv_opengl_cb_context *_glctx
-#    cdef readonly object _ctx
     cdef readonly object _ctx
     cdef readonly object callback
     cdef readonly object callbackthread
