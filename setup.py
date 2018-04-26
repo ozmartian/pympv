@@ -68,7 +68,7 @@ setup(
         "build_ext": build_ext,
         "clean": Clean,
     },
-    ext_modules = cythonize([Extension("mpv", ["mpv.pyx"], libraries=['mpv'],language="c++")],compiler_directives={
+    ext_modules = cythonize([Extension("mpv", ["mpv.pyx"], libraries=['mpv'])],compiler_directives={
         "embedsignature":True,
         "always_allow_keywords":False,
         "cdivision_warnings":False,

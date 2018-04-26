@@ -5,7 +5,6 @@ from client cimport *
 from render cimport *
 from render_gl cimport *
 from stream_cb cimport *
-from talloc cimport *
 
 cimport cython
 
