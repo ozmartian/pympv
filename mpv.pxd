@@ -5,7 +5,6 @@ from client cimport *
 from render cimport *
 from render_gl cimport *
 from stream_cb cimport *
-from talloc cimport *
 
 cimport cython
 
@@ -118,11 +117,10 @@ cdef class Context(object):
     cdef dict _opts
     cdef list _dir
 
-    cdef mpv_format _format_for(self, value)
-    cdef mpv_node_list* _prep_node_list(self, values, void *ctx = ?)
-    cdef mpv_node_list* _prep_node_map(self,  _map, void *ctx = ?)
-    cdef mpv_node _prep_native_value_format(self, value, mpv_format fmt, void *ctx = ?)
-    cdef mpv_node _prep_native_value(self, value, void *ctx = ?)
+    cdef mpv_node_list* _prep_node_list(self, values)
+    cdef mpv_node_list* _prep_node_map(self,  _map)
+    cdef mpv_node _prep_native_value_format(self, value, fmt)
+    cdef mpv_node _prep_native_value(self, value)
     cdef _free_native_value(self, mpv_node node)
     cdef _shutdown_callbackthread(self)
     cdef _shutdown_callback(self)
